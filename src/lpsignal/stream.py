@@ -86,7 +86,7 @@ class SignalStream:
 
     def __init__(self, client: AsyncLPSignal, on_signal: OnSignal, on_event: Optional[OnEvent] = None,
                  store: Optional[LastIdStore] = None, since: Optional[str] = None, ping_interval: float = 30.0,
-                 min_backoff: float = 1.0, max_backoff: float = 30.0):
+                 min_backoff: float = 1.0, max_backoff: float = 30.0, kinds: Optional[list[str]] = None):
         if not client.api_key:
             raise ValueError("SignalStream: the client needs an API key (the stream is for paid plans)")
         if since is not None and not str(since).isdigit():
@@ -96,6 +96,8 @@ class SignalStream:
         self._on_event = on_event
         self._store = store or MemoryLastIdStore()
         self._since = since
+        # only these kinds on this stream (default: the account's subscriptions, plus its rule matches)
+        self._kinds = list(kinds) if kinds else None
         self._ping = ping_interval
         self._min_backoff = min_backoff
         self._max_backoff = max_backoff
@@ -215,7 +217,7 @@ class SignalStream:
         if self._last_id is None:
             # nothing is consumed until the starting point is saved: a restart must resume from this same point
             if self._anchor is None:
-                page = await self._client.signals(limit=1, source="subscribed")
+                page = await self._client.signals(limit=1, source="subscribed", kinds=self._kinds)
                 self._anchor = page["signals"][0]["id"] if page["signals"] else "0"
             self._store.save(self._anchor)
             self._last_id = self._anchor
@@ -225,7 +227,7 @@ class SignalStream:
         delivered = 0
         while self._running:
             # exactly what the socket would deliver (your rule matches; global opportunities only while defaults are on)
-            batch = await self._client.signals_after(self._last_id, source="subscribed")
+            batch = await self._client.signals_after(self._last_id, source="subscribed", kinds=self._kinds)
             if not batch:
                 break
             for s in batch:
@@ -238,7 +240,7 @@ class SignalStream:
 
     async def _connect_once(self) -> bool:
         """One connection's life. Returns True when it went live."""
-        url = f"{self._client.stream_url}?since={self._last_id}"
+        url = f"{self._client.stream_url}?since={self._last_id}" + (f"&kinds={','.join(self._kinds)}" if self._kinds else "")
         self._emit({"type": "connecting", "url": url})
         live = failed = False
         try:

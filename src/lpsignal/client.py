@@ -14,6 +14,11 @@ from .types import (
 )
 
 
+
+def _kinds(kinds: Optional[list[str]]) -> Optional[str]:
+    """a `kinds` list as the API's comma-separated parameter (None when absent or empty)"""
+    return ",".join(kinds) if kinds else None
+
 # "default" = global signals only, "rules" = your custom-rule matches only, "subscribed" = what push delivers
 SignalSource = Literal["default", "rules", "subscribed"]
 DEFAULT_BASE_URL = "https://api.lpsignal.app"
@@ -148,32 +153,33 @@ class LPSignal(_Base):
         return self.request("GET", f"/v1/pools/{_q(chain)}/{_q(address)}/backtest", {"rangePct": range_pct, "days": days})
 
     # ── signals
-    def signals(self, kind: Optional[str] = None, limit: Optional[int] = None, before: Optional[str] = None, source: Optional[SignalSource] = None) -> SignalsPage:
+    def signals(self, kind: Optional[str] = None, limit: Optional[int] = None, before: Optional[str] = None, source: Optional[SignalSource] = None, kinds: Optional[list[str]] = None) -> SignalsPage:
         """One page of signals, newest first. `source`: "default" = global signals only, "rules" = your custom-rule
-        matches only, "subscribed" = exactly what your push channels deliver; None = global + your matches."""
-        return self.request("GET", "/v1/signals", {"kind": kind, "limit": limit, "before": before, "source": source})
+        matches only, "subscribed" = exactly what your push channels deliver; None = global + your matches.
+        `kinds` = several kinds at once, e.g. ["net_apr", "burst"]."""
+        return self.request("GET", "/v1/signals", {"kind": kind, "limit": limit, "before": before, "source": source, "kinds": _kinds(kinds)})
 
-    def signal_stats(self, days: Optional[int] = None) -> dict[str, Any]:
-        """The public track record over the last `days` (7..365, default 30)."""
-        return self.request("GET", "/v1/signals/stats", {"days": days})
+    def signal_stats(self, days: Optional[int] = None, kind: Optional[Literal["net_apr", "burst"]] = None) -> dict[str, Any]:
+        """The public track record of `kind` (net_apr by default, or burst) over the last `days` (7..365, default 30)."""
+        return self.request("GET", "/v1/signals/stats", {"days": days, "kind": kind})
 
     def signal(self, signal_id: str) -> Signal:
         return self.request("GET", f"/v1/signals/{_q(signal_id)}")
 
-    def iter_signals(self, kind: Optional[str] = None, limit: int = 100, source: Optional[SignalSource] = None) -> Iterator[Signal]:
+    def iter_signals(self, kind: Optional[str] = None, limit: int = 100, source: Optional[SignalSource] = None, kinds: Optional[list[str]] = None) -> Iterator[Signal]:
         """Every signal matching `kind`, newest first, following the `next` cursor page by page."""
         before: Optional[str] = None
         while True:
-            page = self.signals(kind=kind, limit=limit, before=before, source=source)
+            page = self.signals(kind=kind, limit=limit, before=before, source=source, kinds=kinds)
             yield from page["signals"]
             if not page["next"]:
                 return
             before = page["next"]
 
-    def signals_after(self, after_id: str, source: Optional[SignalSource] = None) -> list[Signal]:
+    def signals_after(self, after_id: str, source: Optional[SignalSource] = None, kinds: Optional[list[str]] = None) -> list[Signal]:
         """Every signal visible to this key with an id greater than `after_id`, oldest first."""
         newer: list[Signal] = []
-        for s in self.iter_signals(source=source):
+        for s in self.iter_signals(source=source, kinds=kinds):
             if int(s["id"]) <= int(after_id):
                 break
             newer.append(s)
@@ -220,9 +226,10 @@ class LPSignal(_Base):
     def delete_rule(self, rule_id: str) -> None:
         self.request("DELETE", f"/v1/me/rules/{_q(rule_id)}")
 
-    def set_default_signals(self, enabled: bool) -> dict[str, bool]:
-        """Receive the global opportunity signals on the push channels (Telegram, webhook, WebSocket), or not."""
-        return self.request("PUT", "/v1/me/default-signals", body={"enabled": enabled})
+    def set_subscriptions(self, kinds: list[str]) -> dict[str, list[str]]:
+        """The kinds of global signal pushed to you on Telegram, webhook and WebSocket (core events by default; add
+        "burst" for short-term opportunities). Custom-rule matches always arrive."""
+        return self.request("PUT", "/v1/me/subscriptions", body={"kinds": kinds})
 
     def set_webhook(self, url: str) -> WebhookRegistration:
         """Set or replace the webhook. The signing secret is returned only here."""
@@ -319,28 +326,28 @@ class AsyncLPSignal(_Base):
     async def backtest(self, chain: str, address: str, range_pct: float, days: Optional[int] = None) -> Backtest:
         return await self.request("GET", f"/v1/pools/{_q(chain)}/{_q(address)}/backtest", {"rangePct": range_pct, "days": days})
 
-    async def signals(self, kind: Optional[str] = None, limit: Optional[int] = None, before: Optional[str] = None, source: Optional[SignalSource] = None) -> SignalsPage:
-        return await self.request("GET", "/v1/signals", {"kind": kind, "limit": limit, "before": before, "source": source})
+    async def signals(self, kind: Optional[str] = None, limit: Optional[int] = None, before: Optional[str] = None, source: Optional[SignalSource] = None, kinds: Optional[list[str]] = None) -> SignalsPage:
+        return await self.request("GET", "/v1/signals", {"kind": kind, "limit": limit, "before": before, "source": source, "kinds": _kinds(kinds)})
 
-    async def signal_stats(self, days: Optional[int] = None) -> dict[str, Any]:
-        return await self.request("GET", "/v1/signals/stats", {"days": days})
+    async def signal_stats(self, days: Optional[int] = None, kind: Optional[Literal["net_apr", "burst"]] = None) -> dict[str, Any]:
+        return await self.request("GET", "/v1/signals/stats", {"days": days, "kind": kind})
 
     async def signal(self, signal_id: str) -> Signal:
         return await self.request("GET", f"/v1/signals/{_q(signal_id)}")
 
-    async def iter_signals(self, kind: Optional[str] = None, limit: int = 100, source: Optional[SignalSource] = None) -> AsyncIterator[Signal]:
+    async def iter_signals(self, kind: Optional[str] = None, limit: int = 100, source: Optional[SignalSource] = None, kinds: Optional[list[str]] = None) -> AsyncIterator[Signal]:
         before: Optional[str] = None
         while True:
-            page = await self.signals(kind=kind, limit=limit, before=before, source=source)
+            page = await self.signals(kind=kind, limit=limit, before=before, source=source, kinds=kinds)
             for s in page["signals"]:
                 yield s
             if not page["next"]:
                 return
             before = page["next"]
 
-    async def signals_after(self, after_id: str, source: Optional[SignalSource] = None) -> list[Signal]:
+    async def signals_after(self, after_id: str, source: Optional[SignalSource] = None, kinds: Optional[list[str]] = None) -> list[Signal]:
         newer: list[Signal] = []
-        async for s in self.iter_signals(source=source):
+        async for s in self.iter_signals(source=source, kinds=kinds):
             if int(s["id"]) <= int(after_id):
                 break
             newer.append(s)
@@ -377,8 +384,8 @@ class AsyncLPSignal(_Base):
     async def delete_rule(self, rule_id: str) -> None:
         await self.request("DELETE", f"/v1/me/rules/{_q(rule_id)}")
 
-    async def set_default_signals(self, enabled: bool) -> dict[str, bool]:
-        return await self.request("PUT", "/v1/me/default-signals", body={"enabled": enabled})
+    async def set_subscriptions(self, kinds: list[str]) -> dict[str, list[str]]:
+        return await self.request("PUT", "/v1/me/subscriptions", body={"kinds": kinds})
 
     async def set_webhook(self, url: str) -> WebhookRegistration:
         return await self.request("PUT", "/v1/me/webhook", body={"url": url})

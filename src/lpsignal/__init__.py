@@ -9,4 +9,4 @@ __all__ = [
     "FileLastIdStore", "LastIdStore", "MemoryLastIdStore", "SignalStream",
     "WebhookVerificationError", "verify_webhook",
 ]
-__version__ = "0.2.0"
+__version__ = "0.3.0"

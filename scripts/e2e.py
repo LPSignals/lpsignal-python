@@ -265,15 +265,18 @@ if authed and WRITE:
             with contextlib.suppress(LPSignalError):
                 authed.delete_rule(accepted["id"])
             raise AssertionError("TVL floor not enforced")
+        before = m["subscriptions"]
         try:
-            expect(authed.set_default_signals(not m["defaultSignals"])["defaultSignals"] is (not m["defaultSignals"]), "toggle")
+            got = authed.set_subscriptions(["depeg", "burst"])["subscriptions"]
+            expect(got == ["burst", "depeg"], f"set {got}")
         finally:
-            # restore even when the toggle's response was lost or wrong
-            authed.set_default_signals(m["defaultSignals"])
-        expect(authed.me()["defaultSignals"] is m["defaultSignals"], "default switch not restored")
+            # restore even when the response was lost or wrong
+            authed.set_subscriptions(before)
+        expect(authed.me()["subscriptions"] == before, "subscriptions not restored")
+        expect(authed.signal_stats(kind="burst")["kind"] == "burst", "burst stats")
         expect(all(s["rule"] is not None for s in authed.signals(source="rules", limit=20)["signals"]), "source=rules returned a global signal")
 
-    check("write: custom rules create / update / delete, default switch (paid)", rules)
+    check("write: custom rules create / update / delete, subscriptions (paid)", rules)
 
 print(f"\n{stats['passed']} passed, {stats['failed']} failed, {stats['skipped']} skipped")
 sys.exit(1 if stats["failed"] else 0)

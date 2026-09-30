@@ -59,7 +59,7 @@ async def until(cond, timeout=3.0):
     await asyncio.wait_for(wait(), timeout)
 
 
-def make(port, table, store=None, since=None, on_signal=None, calls_out=None):
+def make(port, table, store=None, since=None, on_signal=None, calls_out=None, kinds=None):
     handler, calls = signals_api(table)
     if calls_out is not None:
         calls_out.append(calls)
@@ -75,7 +75,7 @@ def make(port, table, store=None, since=None, on_signal=None, calls_out=None):
         got.append((s["id"], source))
 
     stream = SignalStream(client, on, on_event=events.append, store=store or MemoryLastIdStore(), since=since,
-                          min_backoff=0.01, max_backoff=0.05)
+                          min_backoff=0.01, max_backoff=0.05, kinds=kinds)
     return stream, got, events
 
 
@@ -417,4 +417,19 @@ async def test_rest_anchor_and_catch_up_ask_for_what_the_socket_delivers():
         await stream.start()
         await until(lambda: len(got) == 2)
         assert out[0] and all(r.url.params.get("source") == "subscribed" for r in out[0])
+        await stream.stop()
+
+
+async def test_kinds_reach_the_socket_and_the_rest_catch_up():
+    async def script(ws):
+        await ws.send(json.dumps({"type": "ready"}))
+        await ws.wait_closed()
+
+    async with Server([script]) as srv:
+        out = []
+        stream, _, events = make(srv.port, [1, 2, 3], calls_out=out, kinds=["burst", "depeg"])
+        await stream.start()
+        await until(lambda: any(e["type"] == "live" for e in events))
+        assert srv.paths[0] == "/v1/stream?since=3&kinds=burst,depeg"
+        assert out[0] and all(r.url.params.get("kinds") == "burst,depeg" for r in out[0])
         await stream.stop()

@@ -127,13 +127,18 @@ def test_rules_calls():
     c.create_rule({"kind": "net_apr", "name": "wide", "minNet7d": 0.15, "chains": ["base"]})
     c.update_rule("7", {"kind": "depeg", "name": "peg", "minDeviation": 0.003})
     c.delete_rule("7")
-    c.set_default_signals(False)
+    c.set_subscriptions(["net_apr", "burst"])
     c.signals(source="rules", limit=5)
+    c.signals(kinds=["burst", "depeg"])
+    c.signal_stats(kind="burst")
     assert [f"{x.method} {x.url.path}" for x in calls] == [
-        "GET /v1/me/rules", "POST /v1/me/rules", "PUT /v1/me/rules/7", "DELETE /v1/me/rules/7", "PUT /v1/me/default-signals", "GET /v1/signals",
+        "GET /v1/me/rules", "POST /v1/me/rules", "PUT /v1/me/rules/7", "DELETE /v1/me/rules/7", "PUT /v1/me/subscriptions", "GET /v1/signals",
+        "GET /v1/signals", "GET /v1/signals/stats",
     ]
     assert json.loads(calls[1].content) == {"kind": "net_apr", "name": "wide", "minNet7d": 0.15, "chains": ["base"]}
-    assert calls[4].content == b'{"enabled":false}'
+    assert json.loads(calls[4].content) == {"kinds": ["net_apr", "burst"]}
+    assert dict(calls[6].url.params) == {"kinds": "burst,depeg"}
+    assert dict(calls[7].url.params) == {"kind": "burst"}
     assert dict(calls[5].url.params) == {"limit": "5", "source": "rules"}
 
 
