@@ -1,0 +1,152 @@
+"""Response shapes of the LPSignal API, as returned (camelCase keys, JSON values).
+
+- APRs and ratios are fractions: 0.345 = 34.5%.
+- `ilApr` / `il7d` are the loss versus holding, so they are <= 0, and `netApr = feeApr + ilApr`.
+- `fee` is in hundredths of a basis point: 500 = the 0.05% fee tier.
+- `rangeBp` is the range half-width in basis points of price: 500 = ±5%, 0 = full range.
+- Ids and 256-bit values are strings; timestamps are ISO 8601 strings in UTC.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Literal, Optional, TypedDict, Union
+
+
+class ChainStatus(TypedDict):
+    chain: str
+    block: str
+    blockTs: str
+    firstBlockTs: str
+    lagSec: int
+    activePools: int
+
+
+class BestRange(TypedDict):
+    windowHours: int
+    rangeBp: int
+    tickLower: int
+    tickUpper: int
+    exact: bool
+    feeApr: float
+    ilApr: float
+    netApr: float
+    inRangeRatio: float
+    stakedEmissionApr: float
+    asOf: str
+
+
+class RankedPool(TypedDict):
+    chain: str
+    address: str
+    dex: str
+    pair: str
+    fee: int
+    pairClass: str
+    tvlUsd: float
+    tvlAt: Optional[str]
+    best: BestRange
+
+
+class PoolsPage(TypedDict):
+    pools: list[RankedPool]
+    limit: int
+    offset: int
+
+
+class PoolDetail(TypedDict):
+    pool: dict[str, Any]
+    metrics: list[dict[str, Any]]
+
+
+class PoolHour(TypedDict):
+    hour: str
+    swaps: int
+    volume0: float
+    volume1: float
+    fee0PerL: float
+    fee1PerL: float
+    openTick: int
+    closeTick: int
+    minTick: int
+    maxTick: int
+    closeLiquidity: str
+    feeExact: bool
+
+
+class Backtest(TypedDict):
+    chain: str
+    address: str
+    rangeBp: int
+    days: int
+    asOf: str
+    feeApr: float
+    ilApr: float
+    netApr: float
+    inRangeRatio: float
+    uncertainFeeApr: float
+    startTick: int
+    endTick: int
+    tickLower: int
+    tickUpper: int
+    feesExact: bool
+    exact: bool
+
+
+class SignalOutcome(TypedDict):
+    status: Literal["done", "inexact"]
+    netApr: Optional[float]
+    feeApr: Optional[float]
+    ilApr: Optional[float]
+    evaluatedAt: str
+
+
+# A signal carries the common fields below plus its kind's own fields (see the README):
+#   net_apr:     tvlUsd, net24h, net7d, net30d, fee7d, il7d, inRange7d, stakedEmissionApr?
+#   tvl_outflow: tvlBeforeUsd, tvlNowUsd, drop, windowHours
+#   depeg:       deviation, severe, medianTick, tick
+#   smart_lp:    owner, tokenId, entryUsd, top, rank, wallet30d
+Signal = dict[str, Any]
+
+
+class SignalsPage(TypedDict):
+    signals: list[Signal]
+    next: Optional[str]
+
+
+class Leaderboard(TypedDict):
+    windowDays: int
+    full: bool
+    wallets: list[dict[str, Any]]
+
+
+class WalletPositions(TypedDict):
+    owner: str
+    open: list[dict[str, Any]]
+    closed: list[dict[str, Any]]
+
+
+class Follow(TypedDict):
+    owner: str
+    since: str
+
+
+class Me(TypedDict):
+    id: str
+    tier: Literal["free", "basic", "pro"]
+    paid: bool
+    telegramLinked: bool
+    webhookUrl: Optional[str]
+
+
+class WebhookRegistration(TypedDict):
+    url: str
+    secret: str
+
+
+class TelegramLink(TypedDict):
+    code: str
+    instruction: str
+
+
+BillingStatus = dict[str, Any]
+Json = Union[dict[str, Any], list[Any]]

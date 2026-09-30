@@ -1,0 +1,17 @@
+{
+  "comment": "Generated with the LPSignal server's own signing function (sha256= HMAC-SHA256 of \"<timestamp>.<body>\"). Both SDKs test against these.",
+  "vectors": [
+    {
+      "secret": "whsec_test_0123456789abcdef",
+      "timestamp": "1790000000",
+      "body": "{\"type\":\"signal\",\"deliveryId\":\"9001\",\"signal\":{\"id\":\"4821\",\"kind\":\"net_apr\",\"pair\":\"WETH/USDC\",\"note\":\"unicode ✓ ±5%\"}}",
+      "signature": "sha256=d2560c6a97c6e39c8f4d5c1a147afc6a1cc1c82169b4390c6a6f5c9b6f697144"
+    },
+    {
+      "secret": "whsec_other",
+      "timestamp": "1790000123",
+      "body": "{\"type\":\"signal\",\"deliveryId\":\"1\",\"signal\":{\"id\":\"1\"}}",
+      "signature": "sha256=74a047ab9f3d0bcf5f127fa6e8598a31c13c75937afbbe8164126d70d6e15baa"
+    }
+  ]
+}
