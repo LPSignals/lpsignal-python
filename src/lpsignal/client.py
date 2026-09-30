@@ -229,6 +229,21 @@ class LPSignal(_Base):
         """A Stripe Customer Portal URL (change plan, cancel, invoices)."""
         return self.request("POST", "/v1/billing/portal")
 
+    def crypto_billing(self) -> dict[str, Any]:
+        """Prepaid USDT/USDC plans: prices for this account (upgrade credit applied), networks, the open order."""
+        return self.request("GET", "/v1/billing/crypto")
+
+    def create_crypto_order(self, tier: Literal["basic", "pro"], months: Literal[1, 3, 12]) -> dict[str, Any]:
+        """Start (or get back the open) crypto order; send exactly `amount` before `expiresAt`."""
+        return self.request("POST", "/v1/billing/crypto/orders", body={"tier": tier, "months": months})
+
+    def crypto_order(self, order_id: str) -> dict[str, Any]:
+        return self.request("GET", f"/v1/billing/crypto/orders/{_q(order_id)}")
+
+    def cancel_crypto_order(self, order_id: str) -> dict[str, Any]:
+        """Withdraw an open order (a payment already sent before its deadline still pays it)."""
+        return self.request("POST", f"/v1/billing/crypto/orders/{_q(order_id)}/cancel")
+
 
 class AsyncLPSignal(_Base):
     """Asynchronous client; same methods as `LPSignal`, awaitable. Needed by `SignalStream`."""
@@ -346,3 +361,15 @@ class AsyncLPSignal(_Base):
 
     async def billing_portal(self) -> dict[str, str]:
         return await self.request("POST", "/v1/billing/portal")
+
+    async def crypto_billing(self) -> dict[str, Any]:
+        return await self.request("GET", "/v1/billing/crypto")
+
+    async def create_crypto_order(self, tier: Literal["basic", "pro"], months: Literal[1, 3, 12]) -> dict[str, Any]:
+        return await self.request("POST", "/v1/billing/crypto/orders", body={"tier": tier, "months": months})
+
+    async def crypto_order(self, order_id: str) -> dict[str, Any]:
+        return await self.request("GET", f"/v1/billing/crypto/orders/{_q(order_id)}")
+
+    async def cancel_crypto_order(self, order_id: str) -> dict[str, Any]:
+        return await self.request("POST", f"/v1/billing/crypto/orders/{_q(order_id)}/cancel")

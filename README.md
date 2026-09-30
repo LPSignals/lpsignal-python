@@ -43,6 +43,7 @@ has `TypedDict`s for the main shapes.
 | `me()` · `set_webhook(url)` · `delete_webhook()` · `telegram_link()` | `/v1/me…` | yes |
 | `create_api_key(replace)` | `POST /v1/me/api-key` — replaces the key (or `replace=False`: only if none), returned once | yes |
 | `billing(refresh)` · `checkout(tier)` · `billing_portal()` | `/v1/billing…` | yes |
+| `crypto_billing()` · `create_crypto_order(tier, months)` · `crypto_order(id)` · `cancel_crypto_order(id)` | `/v1/billing/crypto…` — prepaid USDT/USDC plans | yes |
 
 Errors are `LPSignalError` with `status`, `code` (the API's `error` field), `body` and `request_id`. A `429` on a
 GET, PUT or DELETE is retried after its `Retry-After` (`max_retries`, default 2).
