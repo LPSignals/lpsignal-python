@@ -136,6 +136,8 @@ class Me(TypedDict):
     paid: bool
     telegramLinked: bool
     webhookUrl: Optional[str]
+    walletAddress: Optional[str]
+    hasApiKey: bool
 
 
 class WebhookRegistration(TypedDict):

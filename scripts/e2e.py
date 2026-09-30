@@ -138,6 +138,13 @@ def signals():
 
 
 check("signals: page, by id, paging, signals_after", signals)
+def check_signal_stats():
+    st = anon.signal_stats(days=30)
+    expect(isinstance(st["scored"], int) and st["positive"] <= st["scored"] and isinstance(st["points"], list), "bad shape")
+    return f"{st['scored']} scored, {st['inexact']} inexact"
+
+
+check("signal stats (public track record)", check_signal_stats)
 check("smart LP leaderboard", lambda: expect(isinstance(reader.smart_lps(window_days=30)["wallets"], list), "bad shape"))
 
 me: dict = {}

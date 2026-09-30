@@ -149,6 +149,10 @@ class LPSignal(_Base):
         """One page of signals, newest first."""
         return self.request("GET", "/v1/signals", {"kind": kind, "limit": limit, "before": before})
 
+    def signal_stats(self, days: Optional[int] = None) -> dict[str, Any]:
+        """The public track record over the last `days` (7..365, default 30)."""
+        return self.request("GET", "/v1/signals/stats", {"days": days})
+
     def signal(self, signal_id: str) -> Signal:
         return self.request("GET", f"/v1/signals/{_q(signal_id)}")
 
@@ -202,6 +206,10 @@ class LPSignal(_Base):
 
     def delete_webhook(self) -> None:
         self.request("DELETE", "/v1/me/webhook")
+
+    def create_api_key(self) -> dict[str, str]:
+        """Create a new API key and return it (shown only here). The key used for this call stops working."""
+        return self.request("POST", "/v1/me/api-key")
 
     def telegram_link(self) -> TelegramLink:
         """A one-time code: send `/start <code>` to the LPSignal Telegram bot."""
@@ -274,6 +282,9 @@ class AsyncLPSignal(_Base):
     async def signals(self, kind: Optional[str] = None, limit: Optional[int] = None, before: Optional[str] = None) -> SignalsPage:
         return await self.request("GET", "/v1/signals", {"kind": kind, "limit": limit, "before": before})
 
+    async def signal_stats(self, days: Optional[int] = None) -> dict[str, Any]:
+        return await self.request("GET", "/v1/signals/stats", {"days": days})
+
     async def signal(self, signal_id: str) -> Signal:
         return await self.request("GET", f"/v1/signals/{_q(signal_id)}")
 
@@ -319,6 +330,9 @@ class AsyncLPSignal(_Base):
 
     async def delete_webhook(self) -> None:
         await self.request("DELETE", "/v1/me/webhook")
+
+    async def create_api_key(self) -> dict[str, str]:
+        return await self.request("POST", "/v1/me/api-key")
 
     async def telegram_link(self) -> TelegramLink:
         return await self.request("POST", "/v1/me/telegram-link")

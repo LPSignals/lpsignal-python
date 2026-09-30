@@ -34,12 +34,14 @@ has `TypedDict`s for the main shapes.
 | `pool(chain, address)` · `pool_hours(chain, address, hours)` | `GET /v1/pools/:chain/:address[/hours]` | – |
 | `backtest(chain, address, range_pct, days)` | `GET …/backtest` | – |
 | `signals(kind, limit, before)` · `signal(id)` | `GET /v1/signals[/:id]` | optional |
+| `signal_stats(days)` | `GET /v1/signals/stats` — the public track record | – |
 | `iter_signals(kind)` | every page, newest first | optional |
 | `signals_after(id)` | everything newer than `id`, oldest first | optional |
 | `smart_lps(window_days, chain, limit)` | `GET /v1/smart-lps` | optional |
 | `wallet_positions(owner)` | `GET /v1/smart-lps/:owner/positions` | Pro |
 | `follows()` · `follow(owner)` · `unfollow(owner)` | `/v1/me/follows` | Pro |
 | `me()` · `set_webhook(url)` · `delete_webhook()` · `telegram_link()` | `/v1/me…` | yes |
+| `create_api_key()` | `POST /v1/me/api-key` — replaces the key, returned once | yes |
 | `billing(refresh)` · `checkout(tier)` · `billing_portal()` | `/v1/billing…` | yes |
 
 Errors are `LPSignalError` with `status`, `code` (the API's `error` field), `body` and `request_id`. A `429` on a

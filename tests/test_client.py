@@ -96,6 +96,15 @@ def test_iter_and_signals_after():
     assert c.signals_after("250") == []
 
 
+def test_signal_stats_and_create_api_key():
+    http, calls = mock(lambda r: httpx.Response(200, json={"days": 90, "scored": 3} if r.url.path.endswith("/stats") else {"apiKey": "lps_new"}))
+    c = LPSignal(api_key="lps_k", base_url="http://api.test", http=http)
+    assert c.signal_stats(days=90)["scored"] == 3
+    assert c.create_api_key() == {"apiKey": "lps_new"}
+    assert str(calls[0].url) == "http://api.test/v1/signals/stats?days=90"
+    assert calls[1].method == "POST" and calls[1].url.path == "/v1/me/api-key"
+
+
 def test_stream_url():
     assert LPSignal(base_url="https://api.lpsignal.app").stream_url == "wss://api.lpsignal.app/v1/stream"
     assert LPSignal(base_url="http://127.0.0.1:8080/").stream_url == "ws://127.0.0.1:8080/v1/stream"
