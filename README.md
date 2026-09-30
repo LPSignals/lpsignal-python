@@ -41,7 +41,7 @@ has `TypedDict`s for the main shapes.
 | `wallet_positions(owner)` | `GET /v1/smart-lps/:owner/positions` | Pro |
 | `follows()` · `follow(owner)` · `unfollow(owner)` | `/v1/me/follows` | Pro |
 | `me()` · `set_webhook(url)` · `delete_webhook()` · `telegram_link()` | `/v1/me…` | yes |
-| `create_api_key()` | `POST /v1/me/api-key` — replaces the key, returned once | yes |
+| `create_api_key(replace)` | `POST /v1/me/api-key` — replaces the key (or `replace=False`: only if none), returned once | yes |
 | `billing(refresh)` · `checkout(tier)` · `billing_portal()` | `/v1/billing…` | yes |
 
 Errors are `LPSignalError` with `status`, `code` (the API's `error` field), `body` and `request_id`. A `429` on a

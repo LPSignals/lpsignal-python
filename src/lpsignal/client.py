@@ -207,9 +207,10 @@ class LPSignal(_Base):
     def delete_webhook(self) -> None:
         self.request("DELETE", "/v1/me/webhook")
 
-    def create_api_key(self) -> dict[str, str]:
-        """Create a new API key and return it (shown only here). The key used for this call stops working."""
-        return self.request("POST", "/v1/me/api-key")
+    def create_api_key(self, replace: Optional[bool] = None) -> dict[str, str]:
+        """Create a new API key and return it (shown only here). By default it replaces the current key, which stops
+        working at once; `replace=False` only creates one when the account has none (else 409 `api_key_exists`)."""
+        return self.request("POST", "/v1/me/api-key", body=None if replace is None else {"replace": replace})
 
     def telegram_link(self) -> TelegramLink:
         """A one-time code: send `/start <code>` to the LPSignal Telegram bot."""
@@ -331,8 +332,8 @@ class AsyncLPSignal(_Base):
     async def delete_webhook(self) -> None:
         await self.request("DELETE", "/v1/me/webhook")
 
-    async def create_api_key(self) -> dict[str, str]:
-        return await self.request("POST", "/v1/me/api-key")
+    async def create_api_key(self, replace: Optional[bool] = None) -> dict[str, str]:
+        return await self.request("POST", "/v1/me/api-key", body=None if replace is None else {"replace": replace})
 
     async def telegram_link(self) -> TelegramLink:
         return await self.request("POST", "/v1/me/telegram-link")

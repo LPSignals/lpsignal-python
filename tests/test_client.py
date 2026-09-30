@@ -103,6 +103,9 @@ def test_signal_stats_and_create_api_key():
     assert c.create_api_key() == {"apiKey": "lps_new"}
     assert str(calls[0].url) == "http://api.test/v1/signals/stats?days=90"
     assert calls[1].method == "POST" and calls[1].url.path == "/v1/me/api-key"
+    assert calls[1].content == b""
+    c.create_api_key(replace=False)
+    assert calls[2].content == b'{"replace":false}'
 
 
 def test_stream_url():
