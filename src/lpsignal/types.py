@@ -105,7 +105,7 @@ class SignalOutcome(TypedDict):
 #   tvl_outflow: tvlBeforeUsd, tvlNowUsd, drop, windowHours
 #   depeg:       deviation, severe, medianTick, tick
 #   smart_lp:    owner, tokenId, entryUsd, top, rank, wallet30d
-# A signal as returned. `kind`: net_apr | burst (short-term: net3h, fee3h, il3h, inRange3h, windowHours) | tvl_outflow |
+# A signal as returned. `kind`: net_apr | burst (short-term: netApr, feeApr, ilApr, inRangeRatio over windowHours, swaps) | tvl_outflow |
 # depeg | smart_lp. `rule` is {"id", "name"} when one of your custom rules produced it (private to you, never scored),
 # else None.
 Signal = dict[str, Any]

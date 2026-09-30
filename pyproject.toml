@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lpsignal"
-version = "0.3.0"
+version = "0.4.0"
 description = "Official LPSignal SDK: net-of-IL APR signals for concentrated-liquidity pools, a WebSocket stream that never misses a signal, webhook verification and the REST API."
 readme = "README.md"
 requires-python = ">=3.10"
