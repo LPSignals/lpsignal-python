@@ -105,6 +105,8 @@ class SignalOutcome(TypedDict):
 #   tvl_outflow: tvlBeforeUsd, tvlNowUsd, drop, windowHours
 #   depeg:       deviation, severe, medianTick, tick
 #   smart_lp:    owner, tokenId, entryUsd, top, rank, wallet30d
+# A signal as returned. `rule` is {"id", "name"} when one of your custom rules produced it (private to you, never
+# scored), else None.
 Signal = dict[str, Any]
 
 
@@ -138,6 +140,23 @@ class Me(TypedDict):
     webhookUrl: Optional[str]
     walletAddress: Optional[str]
     hasApiKey: bool
+    # receive the global opportunity signals on Telegram / webhook / WebSocket (risk alerts always arrive)
+    defaultSignals: bool
+
+
+# A custom alert rule as stored (every default filled in): id, kind ("net_apr" | "depeg" | "tvl_outflow"), name,
+# enabled, active, chains, pairClasses, pools, minTvlUsd, cooldownHours and the thresholds of its kind
+# (net_apr: minNet7d, minNet24h, minInRange7d; depeg: minDeviation; tvl_outflow: minDrop, windowHours).
+# Thresholds are fractions: 0.15 = 15%.
+Rule = dict[str, Any]
+
+
+class RulesPage(TypedDict):
+    rules: list[Rule]
+    limit: int
+    dailyCap: int
+    matchesToday: int
+    defaultSignals: bool
 
 
 class WebhookRegistration(TypedDict):

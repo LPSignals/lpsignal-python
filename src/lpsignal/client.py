@@ -9,10 +9,13 @@ from urllib.parse import quote
 import httpx
 
 from .types import (
-    Backtest, BillingStatus, ChainStatus, Follow, Leaderboard, Me, PoolDetail, PoolHour, PoolsPage, Signal,
-    SignalsPage, TelegramLink, WalletPositions, WebhookRegistration,
+    Backtest, BillingStatus, ChainStatus, Follow, Leaderboard, Me, PoolDetail, PoolHour, PoolsPage, Rule, RulesPage,
+    Signal, SignalsPage, TelegramLink, WalletPositions, WebhookRegistration,
 )
 
+
+# "default" = global signals only, "rules" = your custom-rule matches only, "subscribed" = what push delivers
+SignalSource = Literal["default", "rules", "subscribed"]
 DEFAULT_BASE_URL = "https://api.lpsignal.app"
 _IDEMPOTENT = {"GET", "PUT", "DELETE"}
 _MAX_RETRY_WAIT = 60.0
@@ -145,9 +148,10 @@ class LPSignal(_Base):
         return self.request("GET", f"/v1/pools/{_q(chain)}/{_q(address)}/backtest", {"rangePct": range_pct, "days": days})
 
     # ── signals
-    def signals(self, kind: Optional[str] = None, limit: Optional[int] = None, before: Optional[str] = None) -> SignalsPage:
-        """One page of signals, newest first."""
-        return self.request("GET", "/v1/signals", {"kind": kind, "limit": limit, "before": before})
+    def signals(self, kind: Optional[str] = None, limit: Optional[int] = None, before: Optional[str] = None, source: Optional[SignalSource] = None) -> SignalsPage:
+        """One page of signals, newest first. `source`: "default" = global signals only, "rules" = your custom-rule
+        matches only, "subscribed" = exactly what your push channels deliver; None = global + your matches."""
+        return self.request("GET", "/v1/signals", {"kind": kind, "limit": limit, "before": before, "source": source})
 
     def signal_stats(self, days: Optional[int] = None) -> dict[str, Any]:
         """The public track record over the last `days` (7..365, default 30)."""
@@ -156,20 +160,20 @@ class LPSignal(_Base):
     def signal(self, signal_id: str) -> Signal:
         return self.request("GET", f"/v1/signals/{_q(signal_id)}")
 
-    def iter_signals(self, kind: Optional[str] = None, limit: int = 100) -> Iterator[Signal]:
+    def iter_signals(self, kind: Optional[str] = None, limit: int = 100, source: Optional[SignalSource] = None) -> Iterator[Signal]:
         """Every signal matching `kind`, newest first, following the `next` cursor page by page."""
         before: Optional[str] = None
         while True:
-            page = self.signals(kind=kind, limit=limit, before=before)
+            page = self.signals(kind=kind, limit=limit, before=before, source=source)
             yield from page["signals"]
             if not page["next"]:
                 return
             before = page["next"]
 
-    def signals_after(self, after_id: str) -> list[Signal]:
+    def signals_after(self, after_id: str, source: Optional[SignalSource] = None) -> list[Signal]:
         """Every signal visible to this key with an id greater than `after_id`, oldest first."""
         newer: list[Signal] = []
-        for s in self.iter_signals():
+        for s in self.iter_signals(source=source):
             if int(s["id"]) <= int(after_id):
                 break
             newer.append(s)
@@ -199,6 +203,26 @@ class LPSignal(_Base):
     # ── account
     def me(self) -> Me:
         return self.request("GET", "/v1/me")
+
+    def rules(self) -> RulesPage:
+        """Your custom alert rules, the plan's limit and today's match count."""
+        return self.request("GET", "/v1/me/rules")
+
+    def create_rule(self, rule: dict[str, Any]) -> Rule:
+        """Create a rule, e.g. {"kind": "net_apr", "name": "wide", "minNet7d": 0.15, "chains": ["base"]}
+        (paid plans; 403 `paid_plan_required`, 400 `rule_limit` when the plan's limit is reached)."""
+        return self.request("POST", "/v1/me/rules", body=rule)
+
+    def update_rule(self, rule_id: str, rule: dict[str, Any]) -> Rule:
+        """Replace a rule (its kind may change too)."""
+        return self.request("PUT", f"/v1/me/rules/{_q(rule_id)}", body=rule)
+
+    def delete_rule(self, rule_id: str) -> None:
+        self.request("DELETE", f"/v1/me/rules/{_q(rule_id)}")
+
+    def set_default_signals(self, enabled: bool) -> dict[str, bool]:
+        """Receive the global opportunity signals on the push channels (Telegram, webhook, WebSocket), or not."""
+        return self.request("PUT", "/v1/me/default-signals", body={"enabled": enabled})
 
     def set_webhook(self, url: str) -> WebhookRegistration:
         """Set or replace the webhook. The signing secret is returned only here."""
@@ -295,8 +319,8 @@ class AsyncLPSignal(_Base):
     async def backtest(self, chain: str, address: str, range_pct: float, days: Optional[int] = None) -> Backtest:
         return await self.request("GET", f"/v1/pools/{_q(chain)}/{_q(address)}/backtest", {"rangePct": range_pct, "days": days})
 
-    async def signals(self, kind: Optional[str] = None, limit: Optional[int] = None, before: Optional[str] = None) -> SignalsPage:
-        return await self.request("GET", "/v1/signals", {"kind": kind, "limit": limit, "before": before})
+    async def signals(self, kind: Optional[str] = None, limit: Optional[int] = None, before: Optional[str] = None, source: Optional[SignalSource] = None) -> SignalsPage:
+        return await self.request("GET", "/v1/signals", {"kind": kind, "limit": limit, "before": before, "source": source})
 
     async def signal_stats(self, days: Optional[int] = None) -> dict[str, Any]:
         return await self.request("GET", "/v1/signals/stats", {"days": days})
@@ -304,19 +328,19 @@ class AsyncLPSignal(_Base):
     async def signal(self, signal_id: str) -> Signal:
         return await self.request("GET", f"/v1/signals/{_q(signal_id)}")
 
-    async def iter_signals(self, kind: Optional[str] = None, limit: int = 100) -> AsyncIterator[Signal]:
+    async def iter_signals(self, kind: Optional[str] = None, limit: int = 100, source: Optional[SignalSource] = None) -> AsyncIterator[Signal]:
         before: Optional[str] = None
         while True:
-            page = await self.signals(kind=kind, limit=limit, before=before)
+            page = await self.signals(kind=kind, limit=limit, before=before, source=source)
             for s in page["signals"]:
                 yield s
             if not page["next"]:
                 return
             before = page["next"]
 
-    async def signals_after(self, after_id: str) -> list[Signal]:
+    async def signals_after(self, after_id: str, source: Optional[SignalSource] = None) -> list[Signal]:
         newer: list[Signal] = []
-        async for s in self.iter_signals():
+        async for s in self.iter_signals(source=source):
             if int(s["id"]) <= int(after_id):
                 break
             newer.append(s)
@@ -340,6 +364,21 @@ class AsyncLPSignal(_Base):
 
     async def me(self) -> Me:
         return await self.request("GET", "/v1/me")
+
+    async def rules(self) -> RulesPage:
+        return await self.request("GET", "/v1/me/rules")
+
+    async def create_rule(self, rule: dict[str, Any]) -> Rule:
+        return await self.request("POST", "/v1/me/rules", body=rule)
+
+    async def update_rule(self, rule_id: str, rule: dict[str, Any]) -> Rule:
+        return await self.request("PUT", f"/v1/me/rules/{_q(rule_id)}", body=rule)
+
+    async def delete_rule(self, rule_id: str) -> None:
+        await self.request("DELETE", f"/v1/me/rules/{_q(rule_id)}")
+
+    async def set_default_signals(self, enabled: bool) -> dict[str, bool]:
+        return await self.request("PUT", "/v1/me/default-signals", body={"enabled": enabled})
 
     async def set_webhook(self, url: str) -> WebhookRegistration:
         return await self.request("PUT", "/v1/me/webhook", body={"url": url})

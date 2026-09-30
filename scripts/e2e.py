@@ -4,7 +4,7 @@
     LPSIGNAL_BASE_URL=https://api.lpsignal.app [LPSIGNAL_API_KEY=lps_...] python scripts/e2e.py
 
 Optional:
-    E2E_WRITE=1               also exercise write endpoints (webhook, Telegram link, follows) — test/PPE accounts only
+    E2E_WRITE=1               also exercise write endpoints (webhook, Telegram link, follows, rules) — test/PPE accounts only
     E2E_EXPECT_SIGNAL_SEC=60  wait this long for one live signal on the stream (something must fire meanwhile)
     LPSIGNAL_FREE_API_KEY=... a free-plan key: the stream must refuse it
 """
@@ -12,6 +12,7 @@ Optional:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import sys
 import time
@@ -234,6 +235,45 @@ if authed and WRITE:
         expect(not any(f["owner"] == owner for f in authed.follows()), "still listed")
 
     check("write: follow / unfollow (Pro)", follows)
+
+    def rules():
+        m = authed.me()
+        if not m["paid"]:
+            raise Skip
+        page = authed.rules()
+        if len(page["rules"]) >= page["limit"]:
+            raise Skip
+        r = authed.create_rule({"kind": "net_apr", "name": "sdk e2e", "minNet7d": 0.15, "chains": ["base"]})
+        try:
+            expect(r["minNet24h"] == 0.15 and r["cooldownHours"] == 24 and r["active"] is True, f"create {r}")
+            u = authed.update_rule(r["id"], {"kind": "depeg", "name": "sdk e2e peg", "minDeviation": 0.003, "enabled": False})
+            expect(u["kind"] == "depeg" and u["active"] is False, "update")
+        finally:
+            # never leave a test rule behind (it would use up the plan's slots on the next run)
+            try:
+                authed.delete_rule(r["id"])
+            except LPSignalError as e:
+                if e.status != 404:
+                    raise RuntimeError(f"cleanup: rule {r['id']} not deleted: {e}") from e
+        expect(not any(x["id"] == r["id"] for x in authed.rules()["rules"]), "still listed")
+        try:
+            accepted = authed.create_rule({"kind": "net_apr", "name": "x", "minNet7d": 0.1, "minTvlUsd": 10})
+        except LPSignalError as e:
+            expect(e.status == 400 and e.code == "invalid_request", f"got {e}")
+        else:
+            # a regression that accepts it must not leave the rule behind either
+            with contextlib.suppress(LPSignalError):
+                authed.delete_rule(accepted["id"])
+            raise AssertionError("TVL floor not enforced")
+        try:
+            expect(authed.set_default_signals(not m["defaultSignals"])["defaultSignals"] is (not m["defaultSignals"]), "toggle")
+        finally:
+            # restore even when the toggle's response was lost or wrong
+            authed.set_default_signals(m["defaultSignals"])
+        expect(authed.me()["defaultSignals"] is m["defaultSignals"], "default switch not restored")
+        expect(all(s["rule"] is not None for s in authed.signals(source="rules", limit=20)["signals"]), "source=rules returned a global signal")
+
+    check("write: custom rules create / update / delete, default switch (paid)", rules)
 
 print(f"\n{stats['passed']} passed, {stats['failed']} failed, {stats['skipped']} skipped")
 sys.exit(1 if stats["failed"] else 0)

@@ -215,7 +215,7 @@ class SignalStream:
         if self._last_id is None:
             # nothing is consumed until the starting point is saved: a restart must resume from this same point
             if self._anchor is None:
-                page = await self._client.signals(limit=1)
+                page = await self._client.signals(limit=1, source="subscribed")
                 self._anchor = page["signals"][0]["id"] if page["signals"] else "0"
             self._store.save(self._anchor)
             self._last_id = self._anchor
@@ -224,7 +224,8 @@ class SignalStream:
         # whatever was created meanwhile must come from REST too, or the socket would skip it
         delivered = 0
         while self._running:
-            batch = await self._client.signals_after(self._last_id)
+            # exactly what the socket would deliver (your rule matches; global opportunities only while defaults are on)
+            batch = await self._client.signals_after(self._last_id, source="subscribed")
             if not batch:
                 break
             for s in batch:

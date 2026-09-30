@@ -59,8 +59,10 @@ async def until(cond, timeout=3.0):
     await asyncio.wait_for(wait(), timeout)
 
 
-def make(port, table, store=None, since=None, on_signal=None):
-    handler, _ = signals_api(table)
+def make(port, table, store=None, since=None, on_signal=None, calls_out=None):
+    handler, calls = signals_api(table)
+    if calls_out is not None:
+        calls_out.append(calls)
     client = AsyncLPSignal(api_key="lps_test", base_url=f"http://127.0.0.1:{port}",
                            http=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
     got, events = [], []
@@ -399,4 +401,20 @@ async def test_start_during_stop_waits_and_handlers_never_overlap():
         assert srv.paths[1] == "/v1/stream?since=2"
         assert state["max"] == 1
         assert got == [("2", "live")]
+        await stream.stop()
+
+
+async def test_rest_anchor_and_catch_up_ask_for_what_the_socket_delivers():
+    async def script(ws):
+        await ws.send(json.dumps({"type": "ready"}))
+        await ws.wait_closed()
+
+    store = MemoryLastIdStore()
+    store.save("2")
+    async with Server([script]) as srv:
+        out = []
+        stream, got, _ = make(srv.port, [1, 2, 3, 4], store=store, calls_out=out)
+        await stream.start()
+        await until(lambda: len(got) == 2)
+        assert out[0] and all(r.url.params.get("source") == "subscribed" for r in out[0])
         await stream.stop()
