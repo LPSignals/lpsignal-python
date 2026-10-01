@@ -95,6 +95,31 @@ def pools():
 check("pools: ranked by net APR, bounded", pools)
 
 
+def pools_sorted():
+    win = 168 if anon.pools(limit=1)["total"] else 24
+    asc = anon.pools(window=win, sort="tvl", order="asc", limit=10)
+    expect(isinstance(asc["total"], int) and asc["sort"] == "tvl" and asc["order"] == "asc", "bad page meta")
+    tvls = [p["tvlUsd"] for p in asc["pools"]]
+    expect(tvls == sorted(tvls), "tvl asc not sorted")
+    if asc["total"] > 10:
+        nxt = anon.pools(window=win, sort="tvl", order="asc", limit=10, offset=10)
+        seen = {(p["chain"], p["address"]) for p in asc["pools"]}
+        expect(not any((p["chain"], p["address"]) in seen for p in nxt["pools"]), "pages overlap")
+    # (metrics may update meanwhile: none twice, none far beyond the total)
+    ids = [(p["chain"], p["address"]) for p in anon.iter_pools(window=win)]
+    n = len(ids)
+    expect(len(set(ids)) == n and n <= asc["total"] + 100, f"iter_pools: {n} pools, {len(set(ids))} distinct, total {asc['total']}")
+    try:
+        anon.pools(sort="owner")
+        raise AssertionError("unknown sort accepted")
+    except LPSignalError as e:
+        expect(e.status == 400, f"got {e.status}")
+    return f"{asc['total']} pools, walked {n}"
+
+
+check("pools: sorted by any column either way, offset pages, total", pools_sorted)
+
+
 def detail():
     if not top:
         raise Skip
@@ -146,7 +171,18 @@ def check_signal_stats():
 
 
 check("signal stats (public track record)", check_signal_stats)
-check("smart LP leaderboard", lambda: expect(isinstance(reader.smart_lps(window_days=30)["wallets"], list), "bad shape"))
+def leaderboard():
+    lb = reader.smart_lps(window_days=30)
+    expect(isinstance(lb["wallets"], list) and isinstance(lb["total"], int), "bad shape")
+    expect(lb["full"] or lb["total"] <= 10, "non-Pro sees more than the top 10")
+    ranks = [w["rank"] for w in lb["wallets"]]
+    expect(ranks == sorted(ranks), "default order is not by rank")
+    caps = [w["capitalUsd"] for w in reader.smart_lps(window_days=30, sort="capital", limit=10)["wallets"]]
+    expect(caps == sorted(caps, reverse=True), "capital desc not sorted")
+    return f"{lb['total']} wallets, full={lb['full']}"
+
+
+check("smart LP leaderboard", leaderboard)
 
 me: dict = {}
 if authed:

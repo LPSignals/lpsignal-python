@@ -152,3 +152,70 @@ async def test_async_client_and_signals_after():
     c = AsyncLPSignal(api_key="lps_k", base_url="http://api.test", http=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
     assert [s["id"] for s in await c.signals_after("7")] == ["8", "9", "10"]
     await c.aclose()
+
+
+def test_sorted_paged_lists_forward_their_parameters():
+    http, calls = mock(lambda r: httpx.Response(200, json={}))
+    c = LPSignal(base_url="http://api.test", http=http)
+    c.pools(sort="tvl", order="asc", limit=25, offset=50)
+    c.smart_lps(window_days=90, sort="capital", offset=20)
+    c.wallet_positions("0xabc", limit=10, open_sort="entryUsd", open_order="asc", closed_offset=10, closed_sort="pnlUsd")
+    assert [c.url.raw_path.decode() for c in calls] == [
+        "/v1/pools?limit=25&offset=50&sort=tvl&order=asc",
+        "/v1/smart-lps?windowDays=90&offset=20&sort=capital",
+        "/v1/smart-lps/0xabc/positions?limit=10&openSort=entryUsd&openOrder=asc&closedOffset=10&closedSort=pnlUsd",
+    ]
+
+
+def _offset_pager(total):
+    def handler(r):
+        q = r.url.params
+        limit, offset = int(q["limit"]), int(q["offset"])
+        ids = range(offset, min(total, offset + limit))
+        if r.url.path == "/v1/pools":
+            return httpx.Response(200, json={"pools": [{"chain": "base", "address": f"p{i}"} for i in ids], "total": total, "limit": limit, "offset": offset})
+        return httpx.Response(200, json={"wallets": [{"owner": f"w{i}", "rank": i + 1} for i in ids], "total": total, "limit": limit, "offset": offset})
+    return handler
+
+
+def test_iter_pools_and_smart_lps_walk_every_page_keeping_the_sort():
+    http, calls = mock(_offset_pager(230))
+    c = LPSignal(base_url="http://api.test", http=http)
+    pools = [p["address"] for p in c.iter_pools(sort="tvl", order="asc")]
+    assert len(pools) == 230 and pools[-1] == "p229"
+    assert [r.url.params["offset"] for r in calls] == ["0", "100", "200"]
+    assert all(r.url.params["sort"] == "tvl" and r.url.params["order"] == "asc" for r in calls)
+    calls.clear()
+    assert len(list(c.iter_smart_lps(limit=50, sort="pnl"))) == 230
+    assert len(calls) == 5
+
+
+def test_an_empty_page_ends_the_walk():
+    http, calls = mock(lambda r: httpx.Response(200, json={"pools": [], "total": 999, "limit": 100, "offset": 0}))
+    assert list(LPSignal(base_url="http://api.test", http=http).iter_pools()) == []
+    assert len(calls) == 1
+
+
+async def test_async_iterators_walk_every_page():
+    c = AsyncLPSignal(base_url="http://api.test", http=httpx.AsyncClient(transport=httpx.MockTransport(_offset_pager(120))))
+    assert len([p async for p in c.iter_pools(limit=50)]) == 120
+    assert len([w async for w in c.iter_smart_lps(limit=50, sort="capital", order="asc")]) == 120
+
+
+def test_a_reorder_between_pages_never_yields_one_twice():
+    state = {"call": 0}
+
+    def handler(r):
+        order = ["A", "B", "C", "D"] if state["call"] == 0 else ["C", "A", "B", "D"]
+        state["call"] += 1
+        offset = int(r.url.params["offset"])
+        rows = order[offset:offset + 2]
+        if r.url.path == "/v1/pools":
+            return httpx.Response(200, json={"pools": [{"chain": "base", "address": a} for a in rows], "total": 4, "limit": 2, "offset": offset})
+        return httpx.Response(200, json={"wallets": [{"owner": o} for o in rows], "total": 4, "limit": 2, "offset": offset})
+
+    http, _ = mock(handler)
+    c = LPSignal(base_url="http://api.test", http=http)
+    assert [p["address"] for p in c.iter_pools(limit=2)] == ["A", "B", "D"]
+    state["call"] = 0
+    assert [w["owner"] for w in c.iter_smart_lps(limit=2)] == ["A", "B", "D"]

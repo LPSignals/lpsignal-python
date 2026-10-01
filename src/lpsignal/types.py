@@ -47,10 +47,22 @@ class RankedPool(TypedDict):
     best: BestRange
 
 
+Order = Literal["asc", "desc"]
+# pools: the best range's figures, or the pool's TVL / fee tier
+PoolSort = Literal["netApr", "feeApr", "ilApr", "inRange", "emissionApr", "tvl", "fee"]
+# smart LPs: `rank` (the pnl rank) stays each wallet's rank whatever the sort
+BoardSort = Literal["rank", "pnl", "return", "capital", "closes", "wins"]
+OpenSort = Literal["lastEvent", "openedAt", "entryUsd"]
+ClosedSort = Literal["closedAt", "openedAt", "capitalUsd", "pnlUsd"]
+
+
 class PoolsPage(TypedDict):
     pools: list[RankedPool]
     limit: int
     offset: int
+    total: int
+    sort: str
+    order: str
 
 
 class PoolDetail(TypedDict):
@@ -116,16 +128,30 @@ class SignalsPage(TypedDict):
     next: Optional[str]
 
 
+# rank, owner, positions, wins, capitalUsd, pnlUsd, returnPct, chains
+LeaderboardWallet = dict[str, Any]
+
+
 class Leaderboard(TypedDict):
     windowDays: int
     full: bool
-    wallets: list[dict[str, Any]]
+    wallets: list[LeaderboardWallet]
+    total: int  # wallets on the board for this caller (non-Pro: at most 10)
+    limit: int
+    offset: int
+    sort: str
+    order: str
 
 
 class WalletPositions(TypedDict):
     owner: str
     open: list[dict[str, Any]]
     closed: list[dict[str, Any]]
+    openTotal: int
+    closedTotal: int
+    limit: int
+    openOffset: int
+    closedOffset: int
 
 
 class Follow(TypedDict):

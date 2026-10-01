@@ -9,8 +9,9 @@ from urllib.parse import quote
 import httpx
 
 from .types import (
-    Backtest, BillingStatus, ChainStatus, Follow, Leaderboard, Me, PoolDetail, PoolHour, PoolsPage, Rule, RulesPage,
-    Signal, SignalsPage, TelegramLink, WalletPositions, WebhookRegistration,
+    Backtest, BillingStatus, BoardSort, ChainStatus, ClosedSort, Follow, Leaderboard, LeaderboardWallet, Me, OpenSort, Order,
+    PoolDetail, PoolHour, PoolSort, PoolsPage, RankedPool, Rule, RulesPage, Signal, SignalsPage, TelegramLink, WalletPositions,
+    WebhookRegistration,
 )
 
 
@@ -90,8 +91,17 @@ class _Base:
         return min(_MAX_RETRY_WAIT, after if after > 0 else 1.0)
 
     @staticmethod
-    def _pools_query(chain, pair_class, window, min_tvl_usd, limit, offset) -> dict[str, Any]:
-        return {"chain": chain, "class": pair_class, "window": window, "minTvlUsd": min_tvl_usd, "limit": limit, "offset": offset}
+    def _pools_query(chain, pair_class, window, min_tvl_usd, limit, offset, sort=None, order=None) -> dict[str, Any]:
+        return {"chain": chain, "class": pair_class, "window": window, "minTvlUsd": min_tvl_usd, "limit": limit, "offset": offset, "sort": sort, "order": order}
+
+    @staticmethod
+    def _board_query(window_days, chain, limit, offset, sort, order) -> dict[str, Any]:
+        return {"windowDays": window_days, "chain": chain, "limit": limit, "offset": offset, "sort": sort, "order": order}
+
+    @staticmethod
+    def _positions_query(limit, open_offset, open_sort, open_order, closed_offset, closed_sort, closed_order) -> dict[str, Any]:
+        return {"limit": limit, "openOffset": open_offset, "openSort": open_sort, "openOrder": open_order,
+                "closedOffset": closed_offset, "closedSort": closed_sort, "closedOrder": closed_order}
 
 
 class LPSignal(_Base):
@@ -136,9 +146,27 @@ class LPSignal(_Base):
 
     # ── pools
     def pools(self, chain: Optional[str] = None, pair_class: Optional[str] = None, window: Optional[int] = None,
-              min_tvl_usd: Optional[float] = None, limit: Optional[int] = None, offset: Optional[int] = None) -> PoolsPage:
-        """Active pools ranked by their best range's net APR over `window` hours (24, 168 or 720)."""
-        return self.request("GET", "/v1/pools", self._pools_query(chain, pair_class, window, min_tvl_usd, limit, offset))
+              min_tvl_usd: Optional[float] = None, limit: Optional[int] = None, offset: Optional[int] = None,
+              sort: Optional[PoolSort] = None, order: Optional[Order] = None) -> PoolsPage:
+        """Active pools with their best range over `window` hours (1, 24, 168 or 720); by net APR unless `sort`
+        says otherwise (netApr, feeApr, ilApr, inRange, emissionApr, tvl, fee; `order` asc/desc, default desc)."""
+        return self.request("GET", "/v1/pools", self._pools_query(chain, pair_class, window, min_tvl_usd, limit, offset, sort, order))
+
+    def iter_pools(self, chain: Optional[str] = None, pair_class: Optional[str] = None, window: Optional[int] = None,
+                   min_tvl_usd: Optional[float] = None, limit: int = 100, sort: Optional[PoolSort] = None, order: Optional[Order] = None) -> Iterator[RankedPool]:
+        """The pools matching the filters, in the asked order, page by page (`limit` = page size). Best effort: pages
+        are read one after another, so a pool whose place changes meanwhile (metrics update hourly) may be missed;
+        none is yielded twice."""
+        offset, seen = 0, set()
+        while True:
+            page = self.pools(chain, pair_class, window, min_tvl_usd, limit, offset, sort, order)
+            for p in page["pools"]:
+                if (p["chain"], p["address"]) not in seen:
+                    seen.add((p["chain"], p["address"]))
+                    yield p
+            offset += len(page["pools"])
+            if not page["pools"] or offset >= page["total"]:
+                return
 
     def pool(self, chain: str, address: str) -> PoolDetail:
         """One pool with every (window, range) metric. `address` is the pool id for Uniswap v4."""
@@ -187,13 +215,32 @@ class LPSignal(_Base):
         return newer
 
     # ── smart LPs
-    def smart_lps(self, window_days: Optional[int] = None, chain: Optional[str] = None, limit: Optional[int] = None) -> Leaderboard:
-        """Wallets ranked by LP pnl versus holding. Without Pro: the top 10 with masked addresses."""
-        return self.request("GET", "/v1/smart-lps", {"windowDays": window_days, "chain": chain, "limit": limit})
+    def smart_lps(self, window_days: Optional[int] = None, chain: Optional[str] = None, limit: Optional[int] = None,
+                  offset: Optional[int] = None, sort: Optional[BoardSort] = None, order: Optional[Order] = None) -> Leaderboard:
+        """Wallets ranked by LP pnl versus holding. `sort`: rank (default), pnl, return, capital, closes, wins — `rank`
+        stays the pnl rank whatever the sort. Without Pro: the top 10 with masked addresses."""
+        return self.request("GET", "/v1/smart-lps", self._board_query(window_days, chain, limit, offset, sort, order))
 
-    def wallet_positions(self, owner: str, limit: Optional[int] = None) -> WalletPositions:
-        """A wallet's open and closed positions (Pro)."""
-        return self.request("GET", f"/v1/smart-lps/{_q(owner)}/positions", {"limit": limit})
+    def iter_smart_lps(self, window_days: Optional[int] = None, chain: Optional[str] = None, limit: int = 100,
+                       sort: Optional[BoardSort] = None, order: Optional[Order] = None) -> Iterator[LeaderboardWallet]:
+        """The wallets on the board, in the asked order, page by page. Best effort like `iter_pools`."""
+        offset, seen = 0, set()
+        while True:
+            page = self.smart_lps(window_days, chain, limit, offset, sort, order)
+            for w in page["wallets"]:
+                if w["owner"] not in seen:
+                    seen.add(w["owner"])
+                    yield w
+            offset += len(page["wallets"])
+            if not page["wallets"] or offset >= page["total"]:
+                return
+
+    def wallet_positions(self, owner: str, limit: Optional[int] = None, open_offset: Optional[int] = None,
+                         open_sort: Optional[OpenSort] = None, open_order: Optional[Order] = None, closed_offset: Optional[int] = None,
+                         closed_sort: Optional[ClosedSort] = None, closed_order: Optional[Order] = None) -> WalletPositions:
+        """A wallet's open and closed positions (Pro); each list pages and sorts on its own, `limit` is shared."""
+        return self.request("GET", f"/v1/smart-lps/{_q(owner)}/positions",
+                            self._positions_query(limit, open_offset, open_sort, open_order, closed_offset, closed_sort, closed_order))
 
     def follows(self) -> list[Follow]:
         """Wallets you follow (Pro)."""
@@ -314,8 +361,22 @@ class AsyncLPSignal(_Base):
         return (await self.request("GET", "/v1/chains"))["chains"]
 
     async def pools(self, chain: Optional[str] = None, pair_class: Optional[str] = None, window: Optional[int] = None,
-                    min_tvl_usd: Optional[float] = None, limit: Optional[int] = None, offset: Optional[int] = None) -> PoolsPage:
-        return await self.request("GET", "/v1/pools", self._pools_query(chain, pair_class, window, min_tvl_usd, limit, offset))
+                    min_tvl_usd: Optional[float] = None, limit: Optional[int] = None, offset: Optional[int] = None,
+                    sort: Optional[PoolSort] = None, order: Optional[Order] = None) -> PoolsPage:
+        return await self.request("GET", "/v1/pools", self._pools_query(chain, pair_class, window, min_tvl_usd, limit, offset, sort, order))
+
+    async def iter_pools(self, chain: Optional[str] = None, pair_class: Optional[str] = None, window: Optional[int] = None,
+                         min_tvl_usd: Optional[float] = None, limit: int = 100, sort: Optional[PoolSort] = None, order: Optional[Order] = None) -> AsyncIterator[RankedPool]:
+        offset, seen = 0, set()
+        while True:
+            page = await self.pools(chain, pair_class, window, min_tvl_usd, limit, offset, sort, order)
+            for p in page["pools"]:
+                if (p["chain"], p["address"]) not in seen:
+                    seen.add((p["chain"], p["address"]))
+                    yield p
+            offset += len(page["pools"])
+            if not page["pools"] or offset >= page["total"]:
+                return
 
     async def pool(self, chain: str, address: str) -> PoolDetail:
         return await self.request("GET", f"/v1/pools/{_q(chain)}/{_q(address)}")
@@ -354,11 +415,28 @@ class AsyncLPSignal(_Base):
         newer.reverse()
         return newer
 
-    async def smart_lps(self, window_days: Optional[int] = None, chain: Optional[str] = None, limit: Optional[int] = None) -> Leaderboard:
-        return await self.request("GET", "/v1/smart-lps", {"windowDays": window_days, "chain": chain, "limit": limit})
+    async def smart_lps(self, window_days: Optional[int] = None, chain: Optional[str] = None, limit: Optional[int] = None,
+                        offset: Optional[int] = None, sort: Optional[BoardSort] = None, order: Optional[Order] = None) -> Leaderboard:
+        return await self.request("GET", "/v1/smart-lps", self._board_query(window_days, chain, limit, offset, sort, order))
 
-    async def wallet_positions(self, owner: str, limit: Optional[int] = None) -> WalletPositions:
-        return await self.request("GET", f"/v1/smart-lps/{_q(owner)}/positions", {"limit": limit})
+    async def iter_smart_lps(self, window_days: Optional[int] = None, chain: Optional[str] = None, limit: int = 100,
+                             sort: Optional[BoardSort] = None, order: Optional[Order] = None) -> AsyncIterator[LeaderboardWallet]:
+        offset, seen = 0, set()
+        while True:
+            page = await self.smart_lps(window_days, chain, limit, offset, sort, order)
+            for w in page["wallets"]:
+                if w["owner"] not in seen:
+                    seen.add(w["owner"])
+                    yield w
+            offset += len(page["wallets"])
+            if not page["wallets"] or offset >= page["total"]:
+                return
+
+    async def wallet_positions(self, owner: str, limit: Optional[int] = None, open_offset: Optional[int] = None,
+                               open_sort: Optional[OpenSort] = None, open_order: Optional[Order] = None, closed_offset: Optional[int] = None,
+                               closed_sort: Optional[ClosedSort] = None, closed_order: Optional[Order] = None) -> WalletPositions:
+        return await self.request("GET", f"/v1/smart-lps/{_q(owner)}/positions",
+                                  self._positions_query(limit, open_offset, open_sort, open_order, closed_offset, closed_sort, closed_order))
 
     async def follows(self) -> list[Follow]:
         return (await self.request("GET", "/v1/me/follows"))["follows"]

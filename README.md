@@ -30,15 +30,17 @@ has `TypedDict`s for the main shapes.
 | Method | Endpoint | Key |
 |---|---|---|
 | `health()` · `chains()` | `/v1/health` · `/v1/chains` | – |
-| `pools(chain, pair_class, window, min_tvl_usd, limit, offset)` | `GET /v1/pools` | – |
+| `pools(chain, pair_class, window, min_tvl_usd, limit, offset, sort, order)` | `GET /v1/pools` — `sort`: `netApr` (default) · `feeApr` · `ilApr` · `inRange` · `emissionApr` · `tvl` · `fee`; `order`: `desc` (default) · `asc`; the page carries `total` | – |
+| `iter_pools(…, sort, order)` | every page, in that order (best effort: none twice; one whose place changes meanwhile may be missed) | – |
 | `pool(chain, address)` · `pool_hours(chain, address, hours)` | `GET /v1/pools/:chain/:address[/hours]` | – |
 | `backtest(chain, address, range_pct, days)` | `GET …/backtest` | – |
 | `signals(kind, limit, before)` · `signal(id)` | `GET /v1/signals[/:id]` | optional |
 | `signal_stats(days)` | `GET /v1/signals/stats` — the public track record | – |
 | `iter_signals(kind)` | every page, newest first | optional |
 | `signals_after(id)` | everything newer than `id`, oldest first | optional |
-| `smart_lps(window_days, chain, limit)` | `GET /v1/smart-lps` | optional |
-| `wallet_positions(owner)` | `GET /v1/smart-lps/:owner/positions` | Pro |
+| `smart_lps(window_days, chain, limit, offset, sort, order)` | `GET /v1/smart-lps` — `sort`: `rank` (default, = pnl rank) · `pnl` · `return` · `capital` · `closes` · `wins`; `rank` stays the pnl rank whatever the sort; `total` | optional |
+| `iter_smart_lps(…, sort, order)` | every wallet on the board, in that order | optional |
+| `wallet_positions(owner, limit, open_offset, open_sort, open_order, closed_offset, closed_sort, closed_order)` | `GET /v1/smart-lps/:owner/positions` — each list pages and sorts on its own (`open_sort`: `lastEvent` · `openedAt` · `entryUsd`; `closed_sort`: `closedAt` · `openedAt` · `capitalUsd` · `pnlUsd`); `openTotal` / `closedTotal` | Pro |
 | `follows()` · `follow(owner)` · `unfollow(owner)` | `/v1/me/follows` | Pro |
 | `me()` · `set_webhook(url)` · `delete_webhook()` · `telegram_link()` | `/v1/me…` | yes |
 | `create_api_key(replace)` | `POST /v1/me/api-key` — replaces the key (or `replace=False`: only if none), returned once | yes |
