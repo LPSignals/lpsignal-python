@@ -3,7 +3,7 @@ from pathlib import Path
 
 import httpx
 
-VECTORS = json.loads((Path(__file__).resolve().parents[2] / "testdata" / "webhook-vectors.json").read_text("utf8"))["vectors"]
+VECTORS = json.loads((Path(__file__).resolve().parents[1] / "testdata" / "webhook-vectors.json").read_text("utf8"))["vectors"]
 
 
 def sig(i: int) -> dict:

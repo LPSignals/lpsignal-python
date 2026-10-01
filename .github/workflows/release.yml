@@ -1,0 +1,35 @@
+name: release
+
+# Trusted publishing (OIDC): no PyPI token exists anywhere. pypi.org trusts exactly this repository
+# (LPSignals/lpsignal-python) + this workflow file + the `release` environment.
+#
+#   git tag python-v0.8.0 && git push origin python-v0.8.0     (version must equal pyproject.toml)
+on:
+  push:
+    tags: ['python-v*']
+
+permissions:
+  contents: read
+
+jobs:
+  pypi:
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write   # OIDC token for PyPI trusted publishing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Tag matches package version
+        run: |
+          want="${GITHUB_REF_NAME#python-v}"
+          have="$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")"
+          [ "$want" = "$have" ] || { echo "tag $GITHUB_REF_NAME but pyproject.toml is $have"; exit 1; }
+      - name: Test
+        run: pip install -e '.[test]' && pytest -q
+      - name: Build
+        run: pip install build && python -m build
+      - uses: pypa/gh-action-pypi-publish@release/v1

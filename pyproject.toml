@@ -16,7 +16,7 @@ dependencies = ["httpx>=0.27", "websockets>=14"]
 test = ["pytest>=8", "pytest-asyncio>=0.24"]
 
 [project.urls]
-Homepage = "https://github.com/LPSignals/lpsignal-sdk"
+Homepage = "https://github.com/LPSignals/lpsignal-python"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/lpsignal"]

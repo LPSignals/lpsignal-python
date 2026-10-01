@@ -3,6 +3,8 @@
 Official Python SDK for [LPSignal](https://lpsignal.app): net-of-IL APR signals for concentrated-liquidity pools.
 Python ≥ 3.10, built on `httpx` and `websockets`.
 
+[中文说明](README.zh.md) · Node.js SDK: [LPSignals/lpsignal-node](https://github.com/LPSignals/lpsignal-node) · [API docs](https://lpsignal.app/docs)
+
 ```bash
 pip install lpsignal
 ```
