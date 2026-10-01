@@ -185,9 +185,9 @@ class LPSignal(_Base):
                 sort: Optional[SignalSort] = None, order: Optional[Order] = None, offset: Optional[int] = None) -> SignalsPage:
         """One page of signals, newest first. `source`: "default" = global signals only, "rules" = your custom-rule
         matches only, "subscribed" = exactly what your push channels deliver; None = global + your matches.
-        `kinds` = several kinds at once, e.g. ["net_apr", "burst"]. `sort`: "time" (default, paged by `before`),
-        "return" (the APR at firing) or "outcome" (the realised 7-day result) — these page by `offset`, carry
-        `total`, and put signals without that figure last; `order` "desc" (default) or "asc"."""
+        `kinds` = several kinds at once, e.g. ["net_apr", "burst"]. `sort`: "time" (default, paged by `before`, or
+        by `offset` with `total`), "return" (the APR at firing) or "outcome" (the realised 7-day result) — these page
+        by `offset`, carry `total`, and put signals without that figure last; `order` "desc" (default) or "asc"."""
         return self.request("GET", "/v1/signals", {"kind": kind, "limit": limit, "before": before, "source": source, "kinds": _kinds(kinds), "sort": sort, "order": order, "offset": offset})
 
     def signal_stats(self, days: Optional[int] = None, kind: Optional[Literal["net_apr", "burst"]] = None) -> dict[str, Any]:
