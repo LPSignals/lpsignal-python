@@ -98,6 +98,9 @@ check("pools: ranked by net APR, bounded", pools)
 def pools_sorted():
     win = 168 if anon.pools(limit=1)["total"] else 24
     asc = anon.pools(window=win, sort="tvl", order="asc", limit=10)
+    expect(all("volume24hUsd" in p and "fees24hUsd" in p and "net24h" in p["best"] for p in asc["pools"]), "24h fields missing")
+    fees = [p["fees24hUsd"] for p in anon.pools(window=win, sort="fees24h", limit=10)["pools"] if p["fees24hUsd"] is not None]
+    expect(fees == sorted(fees, reverse=True), "fees24h desc not sorted")
     expect(isinstance(asc["total"], int) and asc["sort"] == "tvl" and asc["order"] == "asc", "bad page meta")
     tvls = [p["tvlUsd"] for p in asc["pools"]]
     expect(tvls == sorted(tvls), "tvl asc not sorted")
@@ -192,6 +195,7 @@ def leaderboard():
     expect(lb["full"] or lb["total"] <= 10, "non-Pro sees more than the top 10")
     ranks = [w["rank"] for w in lb["wallets"]]
     expect(ranks == sorted(ranks), "default order is not by rank")
+    expect(all("aprVsHold" in w and "winRate" in w and "avgHoldH" in w for w in lb["wallets"]), "wallet figures missing")
     caps = [w["capitalUsd"] for w in reader.smart_lps(window_days=30, sort="capital", limit=10)["wallets"]]
     expect(caps == sorted(caps, reverse=True), "capital desc not sorted")
     return f"{lb['total']} wallets, full={lb['full']}"

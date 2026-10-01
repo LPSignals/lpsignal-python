@@ -35,6 +35,11 @@ class BestRange(TypedDict):
     asOf: str
 
 
+class PoolBestRange(BestRange, total=False):
+    """The best range as the pools list returns it: + the same range's net APR over the last 24h (None = not computed)."""
+    net24h: Optional[float]
+
+
 class RankedPool(TypedDict):
     chain: str
     address: str
@@ -44,14 +49,16 @@ class RankedPool(TypedDict):
     pairClass: str
     tvlUsd: float
     tvlAt: Optional[str]
-    best: BestRange
+    volume24hUsd: Optional[float]  # the last 24h in USD at today's prices; None = no price yet
+    fees24hUsd: Optional[float]    # ESTIMATED 24h swap fees: volume x current fee rate, before protocol cuts
+    best: PoolBestRange
 
 
 Order = Literal["asc", "desc"]
 # pools: the best range's figures, or the pool's TVL / fee tier
-PoolSort = Literal["netApr", "feeApr", "ilApr", "inRange", "emissionApr", "tvl", "fee"]
+PoolSort = Literal["netApr", "feeApr", "ilApr", "inRange", "emissionApr", "tvl", "fee", "volume24h", "fees24h"]
 # smart LPs: `rank` (the pnl rank) stays each wallet's rank whatever the sort
-BoardSort = Literal["rank", "pnl", "return", "capital", "closes", "wins"]
+BoardSort = Literal["rank", "pnl", "return", "capital", "closes", "wins", "apr", "winRate"]
 SignalSort = Literal["time", "return", "outcome"]
 OpenSort = Literal["lastEvent", "openedAt", "entryUsd"]
 ClosedSort = Literal["closedAt", "openedAt", "capitalUsd", "pnlUsd"]
@@ -134,7 +141,8 @@ class SignalsPage(TypedDict, total=False):
     order: str
 
 
-# rank, owner, positions, wins, capitalUsd, pnlUsd, returnPct, chains
+# rank, owner, positions, wins, capitalUsd, pnlUsd, returnPct, chains, aprVsHold (annualised vs holding; None = no
+# timed close), winRate, avgHoldH
 LeaderboardWallet = dict[str, Any]
 
 
