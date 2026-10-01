@@ -34,7 +34,7 @@ has `TypedDict`s for the main shapes.
 | `iter_pools(…, sort, order)` | every page, in that order (best effort: none twice; one whose place changes meanwhile may be missed) | – |
 | `pool(chain, address)` · `pool_hours(chain, address, hours)` | `GET /v1/pools/:chain/:address[/hours]` | – |
 | `backtest(chain, address, range_pct, days)` | `GET …/backtest` | – |
-| `signals(kind, limit, before)` · `signal(id)` | `GET /v1/signals[/:id]` | optional |
+| `signals(kind, limit, before, source, kinds, sort, order, offset)` · `signal(id)` | `GET /v1/signals[/:id]` — newest first by `before`; or `sort`: `return` (APR at firing) · `outcome` (realised 7-day result), paged by `offset` with `total` | optional |
 | `signal_stats(days)` | `GET /v1/signals/stats` — the public track record | – |
 | `iter_signals(kind)` | every page, newest first | optional |
 | `signals_after(id)` | everything newer than `id`, oldest first | optional |

@@ -160,10 +160,12 @@ def test_sorted_paged_lists_forward_their_parameters():
     c.pools(sort="tvl", order="asc", limit=25, offset=50)
     c.smart_lps(window_days=90, sort="capital", offset=20)
     c.wallet_positions("0xabc", limit=10, open_sort="entryUsd", open_order="asc", closed_offset=10, closed_sort="pnlUsd")
+    c.signals(sort="return", order="asc", offset=30, limit=15)
     assert [c.url.raw_path.decode() for c in calls] == [
         "/v1/pools?limit=25&offset=50&sort=tvl&order=asc",
         "/v1/smart-lps?windowDays=90&offset=20&sort=capital",
         "/v1/smart-lps/0xabc/positions?limit=10&openSort=entryUsd&openOrder=asc&closedOffset=10&closedSort=pnlUsd",
+        "/v1/signals?limit=15&sort=return&order=asc&offset=30",
     ]
 
 

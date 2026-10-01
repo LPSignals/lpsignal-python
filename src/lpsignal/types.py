@@ -52,6 +52,7 @@ Order = Literal["asc", "desc"]
 PoolSort = Literal["netApr", "feeApr", "ilApr", "inRange", "emissionApr", "tvl", "fee"]
 # smart LPs: `rank` (the pnl rank) stays each wallet's rank whatever the sort
 BoardSort = Literal["rank", "pnl", "return", "capital", "closes", "wins"]
+SignalSort = Literal["time", "return", "outcome"]
 OpenSort = Literal["lastEvent", "openedAt", "entryUsd"]
 ClosedSort = Literal["closedAt", "openedAt", "capitalUsd", "pnlUsd"]
 
@@ -123,9 +124,14 @@ class SignalOutcome(TypedDict):
 Signal = dict[str, Any]
 
 
-class SignalsPage(TypedDict):
+class SignalsPage(TypedDict, total=False):
     signals: list[Signal]
     next: Optional[str]
+    # sorted by return / outcome only
+    total: int
+    offset: int
+    sort: str
+    order: str
 
 
 # rank, owner, positions, wins, capitalUsd, pnlUsd, returnPct, chains

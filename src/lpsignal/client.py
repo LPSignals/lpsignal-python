@@ -10,7 +10,7 @@ import httpx
 
 from .types import (
     Backtest, BillingStatus, BoardSort, ChainStatus, ClosedSort, Follow, Leaderboard, LeaderboardWallet, Me, OpenSort, Order,
-    PoolDetail, PoolHour, PoolSort, PoolsPage, RankedPool, Rule, RulesPage, Signal, SignalsPage, TelegramLink, WalletPositions,
+    PoolDetail, PoolHour, PoolSort, PoolsPage, RankedPool, Rule, RulesPage, Signal, SignalSort, SignalsPage, TelegramLink, WalletPositions,
     WebhookRegistration,
 )
 
@@ -181,11 +181,14 @@ class LPSignal(_Base):
         return self.request("GET", f"/v1/pools/{_q(chain)}/{_q(address)}/backtest", {"rangePct": range_pct, "days": days})
 
     # ── signals
-    def signals(self, kind: Optional[str] = None, limit: Optional[int] = None, before: Optional[str] = None, source: Optional[SignalSource] = None, kinds: Optional[list[str]] = None) -> SignalsPage:
+    def signals(self, kind: Optional[str] = None, limit: Optional[int] = None, before: Optional[str] = None, source: Optional[SignalSource] = None, kinds: Optional[list[str]] = None,
+                sort: Optional[SignalSort] = None, order: Optional[Order] = None, offset: Optional[int] = None) -> SignalsPage:
         """One page of signals, newest first. `source`: "default" = global signals only, "rules" = your custom-rule
         matches only, "subscribed" = exactly what your push channels deliver; None = global + your matches.
-        `kinds` = several kinds at once, e.g. ["net_apr", "burst"]."""
-        return self.request("GET", "/v1/signals", {"kind": kind, "limit": limit, "before": before, "source": source, "kinds": _kinds(kinds)})
+        `kinds` = several kinds at once, e.g. ["net_apr", "burst"]. `sort`: "time" (default, paged by `before`),
+        "return" (the APR at firing) or "outcome" (the realised 7-day result) — these page by `offset`, carry
+        `total`, and put signals without that figure last; `order` "desc" (default) or "asc"."""
+        return self.request("GET", "/v1/signals", {"kind": kind, "limit": limit, "before": before, "source": source, "kinds": _kinds(kinds), "sort": sort, "order": order, "offset": offset})
 
     def signal_stats(self, days: Optional[int] = None, kind: Optional[Literal["net_apr", "burst"]] = None) -> dict[str, Any]:
         """The public track record of `kind` (net_apr by default, or burst) over the last `days` (7..365, default 30)."""
@@ -387,8 +390,9 @@ class AsyncLPSignal(_Base):
     async def backtest(self, chain: str, address: str, range_pct: float, days: Optional[int] = None) -> Backtest:
         return await self.request("GET", f"/v1/pools/{_q(chain)}/{_q(address)}/backtest", {"rangePct": range_pct, "days": days})
 
-    async def signals(self, kind: Optional[str] = None, limit: Optional[int] = None, before: Optional[str] = None, source: Optional[SignalSource] = None, kinds: Optional[list[str]] = None) -> SignalsPage:
-        return await self.request("GET", "/v1/signals", {"kind": kind, "limit": limit, "before": before, "source": source, "kinds": _kinds(kinds)})
+    async def signals(self, kind: Optional[str] = None, limit: Optional[int] = None, before: Optional[str] = None, source: Optional[SignalSource] = None, kinds: Optional[list[str]] = None,
+                      sort: Optional[SignalSort] = None, order: Optional[Order] = None, offset: Optional[int] = None) -> SignalsPage:
+        return await self.request("GET", "/v1/signals", {"kind": kind, "limit": limit, "before": before, "source": source, "kinds": _kinds(kinds), "sort": sort, "order": order, "offset": offset})
 
     async def signal_stats(self, days: Optional[int] = None, kind: Optional[Literal["net_apr", "burst"]] = None) -> dict[str, Any]:
         return await self.request("GET", "/v1/signals/stats", {"days": days, "kind": kind})

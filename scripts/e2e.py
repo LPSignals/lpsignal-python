@@ -170,6 +170,21 @@ def check_signal_stats():
     return f"{st['scored']} scored, {st['inexact']} inexact"
 
 
+def signals_sorted():
+    r = anon.signals(sort="return", limit=5)
+    expect(isinstance(r["total"], int) and r["next"] is None and r["sort"] == "return", "bad page meta")
+    v = [s.get("netApr") if s["kind"] == "burst" else s.get("net7d") for s in r["signals"] if s["kind"] in ("burst", "net_apr")]
+    v = [x for x in v if isinstance(x, (int, float))]
+    expect(v == sorted(v, reverse=True), "return desc not sorted")
+    try:
+        anon.signals(sort="return", before="5")
+        raise AssertionError("before with a sort accepted")
+    except LPSignalError as e:
+        expect(e.status == 400, f"got {e.status}")
+    return f"{r['total']} signals"
+
+
+check("signals sorted by return / outcome (offset pages, total)", signals_sorted)
 check("signal stats (public track record)", check_signal_stats)
 def leaderboard():
     lb = reader.smart_lps(window_days=30)
