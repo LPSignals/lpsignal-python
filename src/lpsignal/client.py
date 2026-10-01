@@ -91,8 +91,8 @@ class _Base:
         return min(_MAX_RETRY_WAIT, after if after > 0 else 1.0)
 
     @staticmethod
-    def _pools_query(chain, pair_class, window, min_tvl_usd, limit, offset, sort=None, order=None) -> dict[str, Any]:
-        return {"chain": chain, "class": pair_class, "window": window, "minTvlUsd": min_tvl_usd, "limit": limit, "offset": offset, "sort": sort, "order": order}
+    def _pools_query(chain, pair_class, window, min_tvl_usd, limit, offset, sort=None, order=None, min_pool_apr=None) -> dict[str, Any]:
+        return {"chain": chain, "class": pair_class, "window": window, "minTvlUsd": min_tvl_usd, "minPoolApr": min_pool_apr, "limit": limit, "offset": offset, "sort": sort, "order": order}
 
     @staticmethod
     def _board_query(window_days, chain, limit, offset, sort, order) -> dict[str, Any]:
@@ -147,19 +147,19 @@ class LPSignal(_Base):
     # ── pools
     def pools(self, chain: Optional[str] = None, pair_class: Optional[str] = None, window: Optional[int] = None,
               min_tvl_usd: Optional[float] = None, limit: Optional[int] = None, offset: Optional[int] = None,
-              sort: Optional[PoolSort] = None, order: Optional[Order] = None) -> PoolsPage:
+              sort: Optional[PoolSort] = None, order: Optional[Order] = None, min_pool_apr: Optional[float] = None) -> PoolsPage:
         """Active pools with their best range over `window` hours (1, 24, 168 or 720); by net APR unless `sort`
         says otherwise (netApr, feeApr, ilApr, inRange, emissionApr, tvl, fee; `order` asc/desc, default desc)."""
-        return self.request("GET", "/v1/pools", self._pools_query(chain, pair_class, window, min_tvl_usd, limit, offset, sort, order))
+        return self.request("GET", "/v1/pools", self._pools_query(chain, pair_class, window, min_tvl_usd, limit, offset, sort, order, min_pool_apr))
 
     def iter_pools(self, chain: Optional[str] = None, pair_class: Optional[str] = None, window: Optional[int] = None,
-                   min_tvl_usd: Optional[float] = None, limit: int = 100, sort: Optional[PoolSort] = None, order: Optional[Order] = None) -> Iterator[RankedPool]:
+                   min_tvl_usd: Optional[float] = None, limit: int = 100, sort: Optional[PoolSort] = None, order: Optional[Order] = None, min_pool_apr: Optional[float] = None) -> Iterator[RankedPool]:
         """The pools matching the filters, in the asked order, page by page (`limit` = page size). Best effort: pages
         are read one after another, so a pool whose place changes meanwhile (metrics update hourly) may be missed;
         none is yielded twice."""
         offset, seen = 0, set()
         while True:
-            page = self.pools(chain, pair_class, window, min_tvl_usd, limit, offset, sort, order)
+            page = self.pools(chain, pair_class, window, min_tvl_usd, limit, offset, sort, order, min_pool_apr)
             for p in page["pools"]:
                 if (p["chain"], p["address"]) not in seen:
                     seen.add((p["chain"], p["address"]))
@@ -365,14 +365,14 @@ class AsyncLPSignal(_Base):
 
     async def pools(self, chain: Optional[str] = None, pair_class: Optional[str] = None, window: Optional[int] = None,
                     min_tvl_usd: Optional[float] = None, limit: Optional[int] = None, offset: Optional[int] = None,
-                    sort: Optional[PoolSort] = None, order: Optional[Order] = None) -> PoolsPage:
-        return await self.request("GET", "/v1/pools", self._pools_query(chain, pair_class, window, min_tvl_usd, limit, offset, sort, order))
+                    sort: Optional[PoolSort] = None, order: Optional[Order] = None, min_pool_apr: Optional[float] = None) -> PoolsPage:
+        return await self.request("GET", "/v1/pools", self._pools_query(chain, pair_class, window, min_tvl_usd, limit, offset, sort, order, min_pool_apr))
 
     async def iter_pools(self, chain: Optional[str] = None, pair_class: Optional[str] = None, window: Optional[int] = None,
-                         min_tvl_usd: Optional[float] = None, limit: int = 100, sort: Optional[PoolSort] = None, order: Optional[Order] = None) -> AsyncIterator[RankedPool]:
+                         min_tvl_usd: Optional[float] = None, limit: int = 100, sort: Optional[PoolSort] = None, order: Optional[Order] = None, min_pool_apr: Optional[float] = None) -> AsyncIterator[RankedPool]:
         offset, seen = 0, set()
         while True:
-            page = await self.pools(chain, pair_class, window, min_tvl_usd, limit, offset, sort, order)
+            page = await self.pools(chain, pair_class, window, min_tvl_usd, limit, offset, sort, order, min_pool_apr)
             for p in page["pools"]:
                 if (p["chain"], p["address"]) not in seen:
                     seen.add((p["chain"], p["address"]))

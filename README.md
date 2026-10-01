@@ -32,7 +32,7 @@ has `TypedDict`s for the main shapes.
 | Method | Endpoint | Key |
 |---|---|---|
 | `health()` · `chains()` | `/v1/health` · `/v1/chains` | – |
-| `pools(chain, pair_class, window, min_tvl_usd, limit, offset, sort, order)` | `GET /v1/pools` — `sort`: `netApr` (default) · `feeApr` · `ilApr` · `inRange` · `emissionApr` · `tvl` · `fee` · `volume24h` · `fees24h`; `order`: `desc` (default) · `asc`; the page carries `total`; each pool carries `volume24hUsd`, `fees24hUsd` (an estimate: volume × the current fee rate) and `best.net24h` | – |
+| `pools(chain, pair_class, window, min_tvl_usd, limit, offset, sort, order)` | `GET /v1/pools` — `sort`: `netApr` (default) · `feeApr` · `ilApr` · `inRange` · `emissionApr` · `tvl` · `fee` · `volume24h` · `fees24h` · `poolApr`; `min_pool_apr` (0.3 = 30%); `order`: `desc` (default) · `asc`; the page carries `total`; each pool carries `volume24hUsd`, `fees24hUsd` (an estimate: volume × the current fee rate) `best.net24h` and `poolApr24h` (pool-level 24h APR, as DEX sites show it) | – |
 | `iter_pools(…, sort, order)` | every page, in that order (best effort: none twice; one whose place changes meanwhile may be missed) | – |
 | `pool(chain, address)` · `pool_hours(chain, address, hours)` | `GET /v1/pools/:chain/:address[/hours]` | – |
 | `backtest(chain, address, range_pct, days)` | `GET …/backtest` | – |

@@ -51,12 +51,13 @@ class RankedPool(TypedDict):
     tvlAt: Optional[str]
     volume24hUsd: Optional[float]  # the last 24h in USD at today's prices; None = no price yet
     fees24hUsd: Optional[float]    # ESTIMATED 24h swap fees: volume x current fee rate, before protocol cuts
+    poolApr24h: Optional[float]    # pool-level 24h APR as DEX sites show it (fees / TVL x 365, ignores IL); None for v4
     best: PoolBestRange
 
 
 Order = Literal["asc", "desc"]
 # pools: the best range's figures, or the pool's TVL / fee tier
-PoolSort = Literal["netApr", "feeApr", "ilApr", "inRange", "emissionApr", "tvl", "fee", "volume24h", "fees24h"]
+PoolSort = Literal["netApr", "feeApr", "ilApr", "inRange", "emissionApr", "tvl", "fee", "volume24h", "fees24h", "poolApr"]
 # smart LPs: `rank` (the pnl rank) stays each wallet's rank whatever the sort
 BoardSort = Literal["rank", "pnl", "return", "capital", "closes", "wins", "apr", "winRate"]
 SignalSort = Literal["time", "return", "outcome"]

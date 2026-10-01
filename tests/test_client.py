@@ -221,3 +221,12 @@ def test_a_reorder_between_pages_never_yields_one_twice():
     assert [p["address"] for p in c.iter_pools(limit=2)] == ["A", "B", "D"]
     state["call"] = 0
     assert [w["owner"] for w in c.iter_smart_lps(limit=2)] == ["A", "B", "D"]
+
+
+def test_pools_min_pool_apr_and_sort():
+    http, calls = mock(lambda r: httpx.Response(200, json={"pools": [], "total": 0, "limit": 10, "offset": 0}))
+    c = LPSignal(base_url="http://api.test", http=http)
+    c.pools(min_pool_apr=0.3, sort="poolApr", limit=10)
+    list(c.iter_pools(min_pool_apr=0.5, limit=10))
+    assert calls[0].url.params["minPoolApr"] == "0.3" and calls[0].url.params["sort"] == "poolApr"
+    assert calls[1].url.params["minPoolApr"] == "0.5"
