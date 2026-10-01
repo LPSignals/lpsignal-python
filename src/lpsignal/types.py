@@ -126,7 +126,9 @@ class SignalOutcome(TypedDict):
 #   tvl_outflow: tvlBeforeUsd, tvlNowUsd, drop, windowHours
 #   depeg:       deviation, severe, medianTick, tick
 #   smart_lp:    owner, tokenId, entryUsd, top, rank, wallet30d
-# A signal as returned. `kind`: net_apr | burst (short-term: netApr, feeApr, ilApr, inRangeRatio over windowHours, swaps) | tvl_outflow |
+#   hot_pool:    tvlUsd, poolApr24h, poolApr7d, volume24hUsd, fees24hUsd, bestNet24h, bestRangeBp, risk — high yield,
+#                high risk: a big pool's pool-level 24h fee APR jumped (not a position: ticks are 0; never scored)
+# A signal as returned. `kind`: net_apr | burst (short-term: netApr, feeApr, ilApr, inRangeRatio over windowHours, swaps) | hot_pool | tvl_outflow |
 # depeg | smart_lp. `rule` is {"id", "name"} when one of your custom rules produced it (private to you, never scored),
 # else None.
 Signal = dict[str, Any]
@@ -183,7 +185,7 @@ class Me(TypedDict):
     walletAddress: Optional[str]
     hasApiKey: bool
     # kinds of global signal pushed to this account (Telegram, webhook, WebSocket without `kinds`): the core events
-    # net_apr, tvl_outflow, depeg, smart_lp by default; burst only when added. Custom-rule matches always arrive.
+    # net_apr, tvl_outflow, depeg, smart_lp by default; burst and hot_pool only when added. Custom-rule matches always arrive.
     subscriptions: list[str]
 
 

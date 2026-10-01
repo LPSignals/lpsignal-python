@@ -278,7 +278,7 @@ class LPSignal(_Base):
 
     def set_subscriptions(self, kinds: list[str]) -> dict[str, list[str]]:
         """The kinds of global signal pushed to you on Telegram, webhook and WebSocket (core events by default; add
-        "burst" for short-term opportunities). Custom-rule matches always arrive."""
+        "burst" for short-term opportunities, "hot_pool" for high-yield pools). Custom-rule matches always arrive."""
         return self.request("PUT", "/v1/me/subscriptions", body={"kinds": kinds})
 
     def set_webhook(self, url: str) -> WebhookRegistration:
