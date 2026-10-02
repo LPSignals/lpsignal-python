@@ -109,6 +109,56 @@ async def lpsignal(request: Request):
 Pass the raw body bytes, never re-serialised JSON. Deliveries older than 5 minutes are rejected (`tolerance_sec`);
 every retry is signed afresh.
 
+## Adding and removing liquidity
+
+`lpsignal.liquidity` builds the transactions to add liquidity to a pool (in the range you choose) and to remove it, on
+the pools' official position managers — Uniswap v3, PancakeSwap v3, Aerodrome and Velodrome Slipstream. You sign and
+send them with your own web3.py: your keys never reach the SDK, the position is always minted to and collected by
+your own address, and there is no LPSignal contract or fee in between. Uniswap v4 pools are not supported here.
+Install with `pip install "lpsignal[liquidity]"`.
+
+```python
+from web3 import Web3
+from web3.middleware import ExtraDataToPOAMiddleware, SignAndSendRawMiddlewareBuilder
+from lpsignal import LPSignal
+from lpsignal import liquidity as lp
+
+w3 = Web3(Web3.HTTPProvider("https://mainnet.base.org"))
+# w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)   # BNB Chain and Polygon only
+acct = w3.eth.account.from_key(PRIVATE_KEY)
+w3.middleware_onion.inject(SignAndSendRawMiddlewareBuilder.build(acct), layer=0)
+
+pool = LPSignal().pool("base", "0x6c561b446416e1a00e8e93e221854d6ea4171372")["pool"]
+# ±5% around the current price, 1 WETH in, paid in ETH; the USDC side is computed
+plan = lp.plan_add_liquidity(w3, pool, owner=acct.address, amount0=10**18, range_bp=500, native_side=0)
+lp.send_plan(w3, plan["approvals"] + [plan["mint"]], sender=acct.address)   # exact approvals, then the mint
+
+# later: your positions, then take half of one out (principal + fees, to you)
+pos = next(p for p in lp.positions(w3, "base", acct.address) if p["pool"] == pool["address"])
+half = lp.plan_remove_liquidity(w3, pos, owner=acct.address, share_bps=5000)
+done = lp.send_plan(w3, [half["call"]], sender=acct.address, finalized=True)
+rest = lp.plan_remove_liquidity(w3, pos, owner=acct.address, share_bps=10000, min_block=done[0]["blockNumber"])
+lp.send_plan(w3, [rest["call"]], sender=acct.address)
+```
+
+- Minimum amounts follow the Uniswap SDK's rule for a price move of up to `slippage_bps` (default 0.5%); transactions
+  expire after `deadline_s` (default 20 minutes).
+- Every planned call is bound to its chain and owner: `send_plan` refuses to send it from another account or chain.
+- `send_plan` waits for each receipt; if one is not seen in time it raises `TxPending` with the hash: **do not send the
+  same mint or partial removal again until you know what became of it** — a second one would also go through.
+- A send that fails without a hash (the node may have taken it) raises `TxUnknown` with the account and nonce: check
+  whether that nonce was used before sending again.
+- After a `TxUnknown` or `TxPending`, further sends from that account on that chain raise `AccountBlocked` until you
+  have checked the transaction and call `lp.unblock(chain_id, account)`.
+- Before another partial removal from the same position, send with `finalized=True` and pass the previous block as
+  `min_block`: a lagging RPC or a reorg could otherwise hand the next removal the old liquidity.
+- Minimum amounts are what the position manager would take at the edges of the `slippage` band. With a range narrower
+  than that band (e.g. ±0.05% on a stable pair at 0.5% slippage) both minimums can be 0: the mint then has no on-chain
+  price bound, but a price pushed outside your range only makes the deposit single-sided (a mint never trades), and
+  coming back it converts at prices inside your range — the loss is bounded by the range's width.
+- Positions staked in an Aerodrome / Velodrome gauge belong to the gauge and are not listed by `positions`.
+- Not financial advice: a range that paid well can lose money if the price leaves it.
+
 ## License
 
 MIT

@@ -70,6 +70,22 @@ Basic（3 条规则）和 Pro（20 条规则）可以设置自己的阈值。命
 lps.create_rule({"kind": "tvl_outflow", "name": "big exits", "minDrop": 0.2, "windowHours": 6})
 ```
 
+## 添加和移除流动性
+
+`lpsignal.liquidity` 负责构造交易：在你选的价格区间内添加流动性，以及移除流动性。交易发到池子的官方仓位合约（Uniswap v3、PancakeSwap v3、Aerodrome 和 Velodrome Slipstream）。签名和发送都用你自己的 web3.py：私钥不经过 SDK；仓位只会创建到你自己的地址，资金也只领回到你自己的地址；中间没有 LPSignal 的合约，也不收费。这里不支持 Uniswap v4 池子。安装：`pip install "lpsignal[liquidity]"`。
+
+用法见英文 README 的示例：`plan_add_liquidity` → `send_plan`，`positions` → `plan_remove_liquidity` → `send_plan`。BNB Chain 和 Polygon 需要在 web3 里加 `ExtraDataToPOAMiddleware`。
+
+- 最低成交量按 Uniswap SDK 的规则计算，允许的价格变动由 `slippage_bps` 指定（默认 0.5%）；交易在 `deadline_s` 之后失效（默认 20 分钟）。
+- 每笔计划好的交易都绑定了所属的链和账户：从别的账户或别的链发送，`send_plan` 会拒绝。
+- `send_plan` 会等每一笔的回执。如果规定时间内没等到，会抛出带交易哈希的 `TxPending`：**在弄清楚这笔交易的结果之前，不要重发同一笔创建仓位或部分移除的交易**，否则第二笔也会成交。
+- 发送时出错且拿不到交易哈希（节点可能已经收下了这笔交易）会抛出 `TxUnknown`，带上账户和 nonce：请先确认这个 nonce 有没有被用掉，再决定是否重发。
+- 出现 `TxUnknown` 或 `TxPending` 后，这个账户在这条链上的后续发送都会抛出 `AccountBlocked`，直到你核实那笔交易后调用 `lp.unblock(chain_id, account)`。
+- 对同一个仓位做下一次部分移除前：用 `finalized=True` 发送，并把上一次返回的区块号作为 `min_block` 传入。否则 RPC 节点落后或链重组时，下一次可能读到旧的流动性而多取。
+- 最低成交量是价格在滑点范围两端时、仓位合约实际会收取的数量。如果区间比滑点范围还窄（例如稳定币池 ±0.05% 区间配 0.5% 滑点），两个最低值都可能是 0，这时交易在链上没有价格限制。但价格被推出你的区间时，添加只会变成存入单一代币（添加本身不做兑换）；价格回来时，转换只发生在你的区间内，所以损失上限是区间的宽度。
+- 质押在 Aerodrome / Velodrome gauge 里的仓位属于 gauge，`positions` 不会列出。
+- 不构成投资建议：过去收益好的区间，价格离开后也可能亏损。
+
 ## 开发
 
 ```bash

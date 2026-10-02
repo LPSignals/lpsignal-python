@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lpsignal"
-version = "0.9.0"
+version = "0.10.0"
 description = "Official LPSignal SDK: net-of-IL APR signals for concentrated-liquidity pools, a WebSocket stream that never misses a signal, webhook verification and the REST API."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -13,7 +13,8 @@ keywords = ["lpsignal", "defi", "uniswap", "concentrated-liquidity", "liquidity-
 dependencies = ["httpx>=0.27", "websockets>=14"]
 
 [project.optional-dependencies]
-test = ["pytest>=8", "pytest-asyncio>=0.24"]
+liquidity = ["web3>=7,<8"]
+test = ["pytest>=8", "pytest-asyncio>=0.24", "web3>=7,<8"]
 
 [project.urls]
 Homepage = "https://github.com/LPSignals/lpsignal-python"
