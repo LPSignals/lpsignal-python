@@ -18,6 +18,9 @@ slippage rule) — a port of the code the lpsignal.app web app and the Node SDK 
 
 Never re-send a mint or a partial removal whose receipt you have not seen: a second one would also go through
 (send_plan raises TxPending with the hash instead of guessing).
+
+plan_swap swaps one pool token for the other through the KyberSwap aggregator, with LPSignal's fee (0.25%, 0.05% in
+stable pools, on the input); every answer of the aggregator is checked against the pool's own price and the calldata.
 """
 from __future__ import annotations
 
@@ -559,3 +562,187 @@ def _send_queued(w3: Any, calls: list[dict[str, Any]], *, sender: str, timeout_s
             raise TxReverted(h)
         sent.append({"hash": h, "blockNumber": rc["blockNumber"]})
     return sent
+
+
+# ---- swapping through the KyberSwap aggregator, with LPSignal's fee (the same checks as the web app / Node SDK) ----
+KYBER_ROUTER = "0x6131b5fae19ea4f9d964eac0408e4408b66337b5"
+SWAP_FEE_RECEIVER = "0x13ac5bf01871ec16a9a5276f1e167da846af6a33"
+KYBER_NATIVE = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+_KYBER_API = "https://aggregator-api.kyberswap.com"
+_KYBER_CLIENT = "lpsignal"
+# what a build from our quotes carries: _FEE_IN_BPS (0x80) + the base flag (0x200); fee on the output (0x40), partial
+# fills (0x01) or burning/claiming (0x04/0x08/0x10) would change what the user signs: refused
+_SWAP_FLAGS = 0x280
+_SWAP_DESC = "(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes)"
+_SWAP_SIG = f"swap((address,address,bytes,{_SWAP_DESC},bytes))"
+
+
+def swap_fee_bps(pair_class: str) -> int:
+    """LPSignal's fee: 0.05% between stablecoins, else 0.25% (of the input)"""
+    return 5 if pair_class == "stable" else 25
+
+
+def max_impact_bps(pair_class: str) -> int:
+    """how far a quote may fall short of the pool's own price (pool fees, route costs, impact) before it is refused"""
+    return 50 if pair_class == "stable" else 100 if pair_class == "correlated" else 300
+
+
+class SwapRefused(Exception):
+    """the aggregator's answer failed a check (reason: impact / quote / calldata / simulation / moved): nothing to send"""
+
+    def __init__(self, reason: str, detail: str):
+        super().__init__(f"swap refused ({reason}): {detail}")
+        self.reason = reason
+
+
+def spot_out(sqrt_price_x96: int, in_is_token0: bool, amount_in: int, fee_bps: int) -> int:
+    """what amount_in buys at the pool's own price, after our fee (raw units)"""
+    net = amount_in * (_BPS - fee_bps) // _BPS
+    p2 = sqrt_price_x96 * sqrt_price_x96
+    return (net * p2) >> 192 if in_is_token0 else (net << 192) // p2
+
+
+def min_out_floor(spot: int, impact_bps: int, slippage_bps: int) -> int:
+    """the least a swap may promise: the pool price, less the impact allowed, less the slippage"""
+    return spot * (_BPS - impact_bps) // _BPS * (_BPS - slippage_bps) // _BPS
+
+
+def required_min_out(spot: int, impact_bps: int, slippage_bps: int, need: int, quote_out: int) -> int:
+    """the minimum a built swap must promise: the pool-price floor, the shortfall it is for (need), or the quote less the
+    slippage — with 0.01% for the build's rounding (it re-reads the route, a unit or so under the quote)"""
+    return max(min_out_floor(spot, impact_bps, slippage_bps), need, quote_out * (_BPS - slippage_bps - 1) // _BPS)
+
+
+def _kyber_token(token: str, native: bool) -> str:
+    return KYBER_NATIVE if native else token.lower()
+
+
+def check_swap_call(call: dict[str, Any], *, from_token: str, from_native: bool, to_token: str, to_native: bool, amount_in: int,
+                    account: str, fee_bps: int, min_out: int) -> None:
+    """raises SwapRefused unless the call is exactly the swap meant: the router, swap() only, tokens, amount, value, the
+    recipient = account, our fee and no other, the exact flags, no permit, the split, and a minimum >= min_out"""
+    def bad(what: str) -> None:
+        raise SwapRefused("calldata", what)
+
+    if call["to"].lower() != KYBER_ROUTER:
+        bad("router")
+    data = bytes.fromhex(call["data"][2:])
+    try:
+        if data[:4] != _selector(_SWAP_SIG):
+            raise ValueError("function")
+        ((_target, _approve, _target_data, desc, _client),) = decode([f"(address,address,bytes,{_SWAP_DESC},bytes)"], data[4:])
+    except SwapRefused:
+        raise
+    except Exception:
+        bad("undecodable")
+    src, dst, _src_recv, src_amounts, fee_recv, fee_amounts, dst_recv, amount, min_return, flags, permit = desc
+    if src.lower() != _kyber_token(from_token, from_native) or dst.lower() != _kyber_token(to_token, to_native):
+        bad("tokens")
+    if amount != amount_in:
+        bad("amount")
+    if int(call["value"]) != (amount_in if from_native else 0):
+        bad("value")
+    if dst_recv.lower() != account.lower():
+        bad("recipient")
+    if len(fee_recv) != 1 or fee_recv[0].lower() != SWAP_FEE_RECEIVER or len(fee_amounts) != 1 or fee_amounts[0] != fee_bps:
+        bad("fee")
+    if flags != _SWAP_FLAGS:
+        bad("flags")
+    if permit != b"":
+        bad("permit")
+    # a token input: the router hands the executor the amount less our fee, no more (native: carried as value)
+    if not from_native and sum(src_amounts) != amount_in - amount_in * fee_bps // _BPS:
+        bad("split")
+    if min_return < min_out or min_return == 0:
+        bad("minimum")
+
+
+def _kyber(method: str, url: str, body: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    import httpx
+
+    r = httpx.request(method, url, json=body, headers={"x-client-id": _KYBER_CLIENT}, timeout=15)
+    return r.json()
+
+
+def fetch_quote(chain: str, *, from_token: str, from_native: bool, to_token: str, to_native: bool, amount_in: int, fee_bps: int) -> dict[str, Any]:
+    """the best route for amount_in with our fee in it (its echo checked: tokens, amount, fee, router)"""
+    t_in, t_out = _kyber_token(from_token, from_native), _kyber_token(to_token, to_native)
+    q = {"tokenIn": t_in, "tokenOut": t_out, "amountIn": str(amount_in), "feeAmount": str(fee_bps), "isInBps": "true",
+         "chargeFeeBy": "currency_in", "feeReceiver": SWAP_FEE_RECEIVER,
+         # market makers' signed quotes expire within seconds: a confirmation could outlast them (a revert, gas lost)
+         "excludeRFQSources": "true"}
+    import httpx
+
+    r = _kyber("GET", f"{_KYBER_API}/{chain}/api/v1/routes?{httpx.QueryParams(q)}")
+    data = r.get("data") or {}
+    s = data.get("routeSummary")
+    if r.get("code") != 0 or not s:
+        raise SwapRefused("quote", r.get("message") or "no route")
+    fee = s.get("extraFee") or {}
+    if (str(s.get("tokenIn")).lower() != t_in or str(s.get("tokenOut")).lower() != t_out or int(s.get("amountIn")) != amount_in
+            or str(fee.get("feeAmount")) != str(fee_bps) or fee.get("chargeFeeBy") != "currency_in" or fee.get("isInBps") is not True
+            or str(fee.get("feeReceiver")).lower() != SWAP_FEE_RECEIVER or str(data.get("routerAddress")).lower() != KYBER_ROUTER):
+        raise SwapRefused("quote", "the route does not match the request")
+    return {"summary": s, "amountIn": amount_in, "amountOut": int(s["amountOut"])}
+
+
+def build_swap(chain: str, quote: dict[str, Any], account: str, slippage_bps: int, deadline: int) -> dict[str, Any]:
+    """the swap transaction for a quote (to be checked with check_swap_call before sending)"""
+    r = _kyber("POST", f"{_KYBER_API}/{chain}/api/v1/route/build", {
+        "routeSummary": quote["summary"], "sender": account, "recipient": account, "slippageTolerance": slippage_bps, "deadline": deadline, "source": _KYBER_CLIENT})
+    d = r.get("data") or {}
+    if r.get("code") != 0 or not isinstance(d.get("data"), str):
+        raise SwapRefused("quote", r.get("message") or "no calldata")
+    return {"to": _cs(str(d["routerAddress"])), "data": d["data"], "value": int(d.get("transactionValue") or 0)}
+
+
+def plan_swap(w3: Any, pool: dict[str, Any], *, owner: str, from_side: int, amount_in: int, from_native: bool = False, to_native: bool = False,
+              slippage_bps: int = DEFAULT_SLIPPAGE_BPS, min_out: Optional[int] = None, deadline_s: int = 10 * 60) -> dict[str, Any]:
+    """A swap between the pool's two tokens through the KyberSwap aggregator, with LPSignal's fee (0.25%, 0.05% in stable
+    pools, on the input). Every answer is checked, never trusted: the quote must be within the allowed impact of the pool's
+    own price (SwapRefused 'impact'); `min_out` (e.g. the shortfall it is for) must still be covered after the slippage
+    ('moved'); the calldata is decoded and checked (check_swap_call, 'calldata'); then simulated when no approval must land
+    first ('simulation'). The router itself pays at least `minReturn` or reverts. Send with send_plan right away (quotes
+    move); its deadline is in calldata nobody can check, so a send of unknown outcome must be resolved by its own
+    transaction before swapping again (send_plan blocks the account meanwhile)."""
+    chain = pool["chain"]
+    if pool["dex"] == "uniswap_v4":
+        raise ValueError("swapping is offered for v3-style pools (their price bounds the quote); not Uniswap v4")
+    _assert_chain(w3, chain)
+    pair_class = pool.get("pairClass") or "volatile"
+    token = lambda side: (pool["token0"] if side == 0 else pool["token1"]).lower()  # noqa: E731
+    to_side = 1 - from_side
+    for side, native in ((from_side, from_native), (to_side, to_native)):
+        if native and token(side) != WRAPPED[chain]:
+            raise ValueError(f"side {side} is not the wrapped native token: it cannot be paid / received as the native coin")
+    if amount_in <= 0:
+        raise ValueError("amount_in must be positive")
+    # (10000 or more would take the minimum out to nothing: any price would do)
+    if not isinstance(slippage_bps, int) or isinstance(slippage_bps, bool) or not 0 <= slippage_bps < 10_000:
+        raise ValueError("slippage_bps must be an integer from 0 to 9999")
+    if min_out is not None and (not isinstance(min_out, int) or min_out < 0):
+        raise ValueError("min_out must be a non-negative integer")
+    fee_bps, impact_bps = swap_fee_bps(pair_class), max_impact_bps(pair_class)
+    sp, _tick = _slot0(w3, pool["address"])
+    approvals = [] if from_native else approvals_needed(chain, KYBER_ROUTER, [
+        {"token": token(from_side), "amount": amount_in, "allowance": _allowance(w3, token(from_side), owner, KYBER_ROUTER)}])
+    spot = spot_out(sp, from_side == 0, amount_in, fee_bps)
+    q = fetch_quote(chain, from_token=token(from_side), from_native=from_native, to_token=token(to_side), to_native=to_native, amount_in=amount_in, fee_bps=fee_bps)
+    if q["amountOut"] < min_out_floor(spot, impact_bps, 0):
+        raise SwapRefused("impact", f"quote {q['amountOut']} vs pool {spot}")
+    need = min_out or 0
+    if q["amountOut"] * (_BPS - slippage_bps) // _BPS < need:
+        raise SwapRefused("moved", f"quote {q['amountOut']} for {need}")
+    deadline = int(time.time()) + deadline_s
+    c = build_swap(chain, q, owner, slippage_bps, deadline)
+    check_swap_call(c, from_token=token(from_side), from_native=from_native, to_token=token(to_side), to_native=to_native, amount_in=amount_in,
+                    account=owner, fee_bps=fee_bps, min_out=required_min_out(spot, impact_bps, slippage_bps, need, q["amountOut"]))
+    simulated = not approvals
+    if simulated:
+        try:
+            w3.eth.call({"from": _cs(owner), "to": c["to"], "data": c["data"], "value": c["value"]})
+        except Exception as e:  # noqa: BLE001
+            raise SwapRefused("simulation", str(e)[:200]) from e
+    ((_t, _a, _td, desc, _cd),) = decode([f"(address,address,bytes,{_SWAP_DESC},bytes)"], bytes.fromhex(c["data"][2:])[4:])
+    return {"approvals": [_bind(a, chain, owner) for a in approvals], "swap": _bind(c, chain, owner), "amountIn": amount_in, "quoteOut": q["amountOut"],
+            "minReturn": desc[8], "feeBps": fee_bps, "simulated": simulated, "deadline": deadline}

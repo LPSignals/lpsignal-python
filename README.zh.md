@@ -86,6 +86,16 @@ lps.create_rule({"kind": "tvl_outflow", "name": "big exits", "minDrop": 0.2, "wi
 - 质押在 Aerodrome / Velodrome gauge 里的仓位属于 gauge，`positions` 不会列出。
 - 不构成投资建议：过去收益好的区间，价格离开后也可能亏损。
 
+## 兑换
+
+`plan_swap` 通过 [KyberSwap](https://kyberswap.com) 聚合器，把池子里的一种代币兑换成另一种（例如添加前补足不够的那一边）。**LPSignal 收取输入金额的 0.25%（稳定型池 0.05%）作为手续费**，由聚合器路由合约直接转到 LPSignal 的地址。聚合器的返回不会被直接信任：报价必须接近池子自身的链上价格；它构造的交易会被解码核对，包括路由合约、代币和数量、收款人（你自己的地址）、手续费恰好是 LPSignal 的且没有其他费用、没有 permit、保证的最少到账不低于你的滑点允许值，然后再模拟一次。路由合约保证至少到账 `minReturn`，否则交易回滚。
+
+用法：`plan_swap(w3, pool, owner=..., from_side=0, amount_in=..., from_native=False, to_native=False, slippage_bps=50, min_out=None)` → `send_plan(w3, plan["approvals"] + [plan["swap"]], sender=...)`。
+
+- `min_out`：这次兑换至少要到账的数量（例如你缺的数量）；报价扣除滑点后不够时会拒绝（`SwapRefused` `moved`）。其他拒绝原因：`impact`（报价比池子价格低太多）、`quote` / `calldata`（聚合器返回与请求不符）、`simulation`（现在发送会失败）。
+- 计划生成后请立即发送（报价会变；`deadline_s` 后失效，默认 10 分钟）。兑换的截止时间写在无法核对的 calldata 里，所以遇到 `TxUnknown` / `TxPending` 后，请先弄清那笔交易本身的结果再兑换（期间 `send_plan` 会锁住该账户）。
+- 不支持 Uniswap v4 池子。聚合器会拒绝部分地址（例如公开的测试私钥）。
+
 ## 开发
 
 ```bash

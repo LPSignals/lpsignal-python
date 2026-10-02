@@ -88,3 +88,61 @@ def test_add_list_remove(chain, address, range_bp, native):
             lp.plan_remove_liquidity(w3, pos, owner="0x00000000000000000000000000000000000000aa", share_bps=10000)
     finally:
         anvil.kill()
+
+
+def test_swap_through_the_real_route():
+    """plan_swap → send_plan on a Base fork: native ETH in, then WETH in (approval + swap): at least minReturn arrives,
+    LPSignal's fee exactly (a fresh account: the aggregator refuses anvil's well-known default ones)."""
+    from eth_abi import decode, encode
+    from eth_utils import keccak
+    from web3 import Web3
+    from web3.middleware import SignAndSendRawMiddlewareBuilder
+
+    from lpsignal import liquidity as lp
+
+    address = "0x6c561b446416e1a00e8e93e221854d6ea4171372"
+    pool = httpx.get(f"https://lpsignal.app/v1/pools/base/{address}", timeout=30).json()["pool"]
+    port = _port[0]; _port[0] += 1
+    anvil = subprocess.Popen(["anvil", "--fork-url", FORK["base"], "--port", str(port), "--silent", "--no-rate-limit"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        w3 = Web3(Web3.HTTPProvider(f"http://127.0.0.1:{port}", request_kwargs={"timeout": 60}))
+        for _ in range(240):
+            try:
+                w3.eth.chain_id
+                break
+            except Exception:
+                time.sleep(0.5)
+        acct = w3.eth.account.create()
+        w3.middleware_onion.inject(SignAndSendRawMiddlewareBuilder.build(acct), layer=0)
+        me = acct.address
+        w3.provider.make_request("anvil_setBalance", [me, hex(10**21)])
+        sel = lambda s: keccak(text=s)[:4]
+        bal = lambda t, who: decode(["uint256"], bytes(w3.eth.call({"to": Web3.to_checksum_address(t), "data": "0x" + (sel("balanceOf(address)") + encode(["address"], [who])).hex()})))[0]
+        w3.eth.wait_for_transaction_receipt(w3.eth.send_transaction({"from": me, "to": Web3.to_checksum_address(pool["token0"]), "value": 10**17, "data": "0x" + sel("deposit()").hex()}))
+        fee_receiver = Web3.to_checksum_address(lp.SWAP_FEE_RECEIVER)
+        for native in (True, False):
+            amount_in = 10**17
+            done = False
+            for _ in range(4):  # re-planned on a revert: a fork freezes market makers' pools some routes go through
+                plan = lp.plan_swap(w3, pool, owner=me, from_side=0, from_native=native, amount_in=amount_in)
+                assert len(plan["approvals"]) == (0 if native else 1)
+                fee0 = w3.eth.get_balance(fee_receiver) if native else bal(pool["token0"], fee_receiver)
+                usdc0 = bal(pool["token1"], me)
+                try:
+                    lp.send_plan(w3, plan["approvals"] + [plan["swap"]], sender=me)
+                except lp.TxReverted:
+                    continue
+                except lp.TxUnknown as e:
+                    # the gas estimate reverted (certainly not sent): unblock and re-plan, as a user would
+                    if "revert" not in str(e.__cause__).lower():
+                        raise
+                    lp.unblock(8453, me)
+                    continue
+                fee1 = w3.eth.get_balance(fee_receiver) if native else bal(pool["token0"], fee_receiver)
+                assert fee1 - fee0 == amount_in * 25 // 10_000
+                assert bal(pool["token1"], me) - usdc0 >= plan["minReturn"]
+                done = True
+                break
+            assert done, "native" if native else "weth"
+    finally:
+        anvil.terminate()
