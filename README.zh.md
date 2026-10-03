@@ -20,6 +20,15 @@ pip install lpsignal
   `signal.id` 做幂等。
 - **Webhook 验签**：校验 `x-lpsignal-signature` 的 HMAC 和时间戳，返回解析后的内容。
 
+## 关于 LPSignal
+
+- [实时 LP 信号](https://lpsignal.app/zh/signals)及每条信号的实际结果
+- [聪明 LP 排行榜](https://lpsignal.app/zh/smart-lps)：按已平仓头寸相对持币的收益给钱包排名
+- [方法论](https://lpsignal.app/zh/methodology)：手续费、无常损失和区间回测怎么计算
+- [集中流动性无常损失计算器](https://lpsignal.app/zh/calculator)
+- [LPSignal 与 Revert、Metrix、Krystal、DefiLlama Yields 的对比](https://lpsignal.app/zh/compare)
+- 各链最佳池子：[Ethereum](https://lpsignal.app/zh/chains/ethereum) · [BNB Chain](https://lpsignal.app/zh/chains/bsc) · [Base](https://lpsignal.app/zh/chains/base) · [Arbitrum](https://lpsignal.app/zh/chains/arbitrum) · [Optimism](https://lpsignal.app/zh/chains/optimism) · [Polygon](https://lpsignal.app/zh/chains/polygon)
+
 ## 快速开始
 
 ```python

@@ -17,7 +17,9 @@ liquidity = ["web3>=7,<8"]
 test = ["pytest>=8", "pytest-asyncio>=0.24", "web3>=7,<8"]
 
 [project.urls]
-Homepage = "https://github.com/LPSignals/lpsignal-python"
+Homepage = "https://lpsignal.app"
+Documentation = "https://lpsignal.app/docs"
+Repository = "https://github.com/LPSignals/lpsignal-python"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/lpsignal"]

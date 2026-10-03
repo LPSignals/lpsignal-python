@@ -9,6 +9,19 @@ Python ≥ 3.10, built on `httpx` and `websockets`.
 pip install lpsignal
 ```
 
+## About LPSignal
+
+LPSignal ranks blue-chip concentrated-liquidity pools (Uniswap v3/v4, PancakeSwap v3, Aerodrome / Velodrome Slipstream)
+on Ethereum, BNB Chain, Base, Arbitrum, Optimism and Polygon by **net APR — fees minus impermanent loss** — backtested
+for each price range from on-chain fee growth.
+
+- [Live LP signals](https://lpsignal.app/signals) and how each one turned out
+- [Smart LP leaderboard](https://lpsignal.app/smart-lps): wallets ranked by what their closed positions earned versus holding
+- [Methodology](https://lpsignal.app/methodology): how fees, impermanent loss and range backtests are computed
+- [Concentrated-liquidity impermanent loss calculator](https://lpsignal.app/calculator)
+- [How LPSignal compares](https://lpsignal.app/compare) with Revert, Metrix, Krystal and DefiLlama Yields
+- Best pools by chain: [Ethereum](https://lpsignal.app/chains/ethereum) · [BNB Chain](https://lpsignal.app/chains/bsc) · [Base](https://lpsignal.app/chains/base) · [Arbitrum](https://lpsignal.app/chains/arbitrum) · [Optimism](https://lpsignal.app/chains/optimism) · [Polygon](https://lpsignal.app/chains/polygon)
+
 ## REST
 
 ```python
