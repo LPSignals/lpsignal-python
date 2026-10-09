@@ -113,11 +113,11 @@ def test_crypto_billing_calls():
     http, calls = mock(lambda r: httpx.Response(200, json={"id": "9", "status": "pending"}))
     c = LPSignal(api_key="lps_k", base_url="http://api.test", http=http)
     c.crypto_billing()
-    c.create_crypto_order("pro", 12)
+    c.create_crypto_order("pro")
     c.crypto_order("9")
     c.cancel_crypto_order("9")
     assert [f"{x.method} {x.url.path}" for x in calls] == ["GET /v1/billing/crypto", "POST /v1/billing/crypto/orders", "GET /v1/billing/crypto/orders/9", "POST /v1/billing/crypto/orders/9/cancel"]
-    assert calls[1].content == b'{"tier":"pro","months":12}'
+    assert calls[1].content == b'{"tier":"pro","months":1}'
 
 
 def test_rules_calls():

@@ -314,8 +314,8 @@ class LPSignal(_Base):
         """Prepaid USDT/USDC plans: prices for this account (upgrade credit applied), networks, the open order."""
         return self.request("GET", "/v1/billing/crypto")
 
-    def create_crypto_order(self, tier: Literal["basic", "pro"], months: Literal[1, 3, 12]) -> dict[str, Any]:
-        """Start (or get back the open) crypto order; send exactly `amount` before `expiresAt`."""
+    def create_crypto_order(self, tier: Literal["basic", "pro"], months: Literal[1] = 1) -> dict[str, Any]:
+        """Start (or get back the open) crypto order for one month (no renewal: order again to add time); send exactly `amount` before `expiresAt`."""
         return self.request("POST", "/v1/billing/crypto/orders", body={"tier": tier, "months": months})
 
     def crypto_order(self, order_id: str) -> dict[str, Any]:
@@ -493,7 +493,7 @@ class AsyncLPSignal(_Base):
     async def crypto_billing(self) -> dict[str, Any]:
         return await self.request("GET", "/v1/billing/crypto")
 
-    async def create_crypto_order(self, tier: Literal["basic", "pro"], months: Literal[1, 3, 12]) -> dict[str, Any]:
+    async def create_crypto_order(self, tier: Literal["basic", "pro"], months: Literal[1] = 1) -> dict[str, Any]:
         return await self.request("POST", "/v1/billing/crypto/orders", body={"tier": tier, "months": months})
 
     async def crypto_order(self, order_id: str) -> dict[str, Any]:
