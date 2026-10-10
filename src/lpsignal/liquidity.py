@@ -41,12 +41,14 @@ NPM: dict[str, dict[str, str]] = {
     "arbitrum": {"uniswap_v3": "0xc36442b4a4522e871399cd717abdd847ab11fe88", "pancake_v3": "0x46a15b0b27311cedf172ab29e4f4766fbe7f4364"},
     "optimism": {"uniswap_v3": "0xc36442b4a4522e871399cd717abdd847ab11fe88", "velodrome_cl": "0x416b433906b1b72fa758e166e239c43d68dc6f29"},
     "polygon": {"uniswap_v3": "0xc36442b4a4522e871399cd717abdd847ab11fe88"},
+    "robinhood": {"uniswap_v3": "0x73991a25c818bf1f1128deaab1492d45638de0d3"},
 }
-CHAIN_ID = {"ethereum": 1, "bsc": 56, "base": 8453, "arbitrum": 42161, "optimism": 10, "polygon": 137}
+CHAIN_ID = {"ethereum": 1, "bsc": 56, "base": 8453, "arbitrum": 42161, "optimism": 10, "polygon": 137, "robinhood": 4663}
 WRAPPED = {
     "ethereum": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2", "bsc": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
     "base": "0x4200000000000000000000000000000000000006", "arbitrum": "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
     "optimism": "0x4200000000000000000000000000000000000006", "polygon": "0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270",
+    "robinhood": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
 }
 # USDT on Ethereum refuses to change a non-zero allowance to another non-zero one: reset it to 0 first
 ZERO_FIRST = {"ethereum": ["0xdac17f958d2ee523a2206206994597c13d831ec7"]}

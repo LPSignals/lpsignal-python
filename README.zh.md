@@ -2,7 +2,7 @@
 
 [LPSignal](https://lpsignal.app) 的官方 Python SDK。LPSignal 为蓝筹集中流动性池（Uniswap v3/v4、PancakeSwap v3、
 Aerodrome / Velodrome Slipstream）提供扣除无常损失后的净 APR 信号，覆盖 Ethereum、BNB Chain、Base、Arbitrum、
-Optimism 和 Polygon。
+Optimism、Polygon 和 Robinhood Chain。
 
 [English](README.md) · Node.js 版：[LPSignals/lpsignal-node](https://github.com/LPSignals/lpsignal-node) · [API 文档](https://lpsignal.app/docs)
 
@@ -27,7 +27,7 @@ pip install lpsignal
 - [方法论](https://lpsignal.app/zh/methodology)：手续费、无常损失和区间回测怎么计算
 - [集中流动性无常损失计算器](https://lpsignal.app/zh/calculator)
 - [LPSignal 与 Revert、Metrix、Krystal、DefiLlama Yields 的对比](https://lpsignal.app/zh/compare)
-- 各链最佳池子：[Ethereum](https://lpsignal.app/zh/chains/ethereum) · [BNB Chain](https://lpsignal.app/zh/chains/bsc) · [Base](https://lpsignal.app/zh/chains/base) · [Arbitrum](https://lpsignal.app/zh/chains/arbitrum) · [Optimism](https://lpsignal.app/zh/chains/optimism) · [Polygon](https://lpsignal.app/zh/chains/polygon)
+- 各链最佳池子：[Ethereum](https://lpsignal.app/zh/chains/ethereum) · [BNB Chain](https://lpsignal.app/zh/chains/bsc) · [Base](https://lpsignal.app/zh/chains/base) · [Arbitrum](https://lpsignal.app/zh/chains/arbitrum) · [Optimism](https://lpsignal.app/zh/chains/optimism) · [Polygon](https://lpsignal.app/zh/chains/polygon) · [Robinhood Chain](https://lpsignal.app/zh/chains/robinhood)
 
 ## 快速开始
 
