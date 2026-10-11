@@ -4,7 +4,7 @@
 Aerodrome / Velodrome Slipstream）提供扣除无常损失后的净 APR 信号，覆盖 Ethereum、BNB Chain、Base、Arbitrum、
 Optimism、Polygon 和 Robinhood Chain。
 
-[English](README.md) · Node.js 版：[LPSignals/lpsignal-node](https://github.com/LPSignals/lpsignal-node) · [API 文档](https://lpsignal.app/docs)
+[English](README.md) · Node.js 版：[LPSignals/lpsignal-node](https://github.com/LPSignals/lpsignal-node) · [API 文档](https://lpsignal.app/docs) · [Discord 社区](https://discord.gg/buKQT9mkaF)
 
 ```bash
 pip install lpsignal
