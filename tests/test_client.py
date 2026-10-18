@@ -230,3 +230,14 @@ def test_pools_min_pool_apr_and_sort():
     list(c.iter_pools(min_pool_apr=0.5, limit=10))
     assert calls[0].url.params["minPoolApr"] == "0.3" and calls[0].url.params["sort"] == "poolApr"
     assert calls[1].url.params["minPoolApr"] == "0.5"
+
+
+def test_pools_stock_filter():
+    http, calls = mock(lambda r: httpx.Response(200, json={"pools": [], "total": 0, "limit": 10, "offset": 0}))
+    c = LPSignal(base_url="http://api.test", http=http)
+    c.pools(stock=True, chain="robinhood")
+    list(c.iter_pools(stock=False, limit=10))
+    c.pools()
+    assert calls[0].url.params["stock"] == "true" and calls[0].url.params["chain"] == "robinhood"
+    assert calls[1].url.params["stock"] == "false"
+    assert "stock" not in calls[2].url.params
